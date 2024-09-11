@@ -1,6 +1,7 @@
 package router
 
 import (
+	"app/config"
 	"log"
 	"net/http"
 
@@ -26,7 +27,15 @@ func AppRouter() http.Handler {
 		})
 	})
 
-	log.Println("Sevice h-shop-be-shop starting success! URL: http://localhost:10000")
+	app.Route("/api", func(api chi.Router) {
+		api.Route("/v1", RouterV1)
+	})
+
+	log.Printf(
+		"Server art-pixel starting success! URL: http://%s:%s",
+		config.GetAppHost(),
+		config.GetAppPort(),
+	)
 
 	return app
 }
