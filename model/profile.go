@@ -11,5 +11,5 @@ type Profile struct {
 	Nickname  string `json:"nickname"`
 	Active    bool   `json:"active"`
 
-	Faces []Face `json:"face" gorm:"foreignKey:ProfileId"`
+	Faces []Face `json:"faces" gorm:"foreignKey:ProfileId"`
 }

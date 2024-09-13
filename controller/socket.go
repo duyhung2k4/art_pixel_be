@@ -2,6 +2,7 @@ package controller
 
 import (
 	"app/dto/request"
+	"app/service"
 	"app/utils"
 	"encoding/base64"
 	"encoding/json"
@@ -13,13 +14,22 @@ import (
 	"github.com/google/uuid"
 )
 
-type socketController struct{}
-
-type SocketController interface {
-	SendFileAuthFace(w http.ResponseWriter, r *http.Request, payload request.SendFileAuthFaceReq) string
+type socketController struct {
+	socketService service.SocketService
 }
 
-func (c *socketController) SendFileAuthFace(w http.ResponseWriter, r *http.Request, payload request.SendFileAuthFaceReq) string {
+type SocketController interface {
+	SendFileAuthFace(w http.ResponseWriter, r *http.Request, jsonData []byte, auth string) string
+}
+
+func (c *socketController) SendFileAuthFace(w http.ResponseWriter, r *http.Request, jsonData []byte, auth string) string {
+	var payload request.SendFileAuthFaceReq
+	// var err error
+
+	if err := json.Unmarshal(jsonData, &payload); err != nil {
+		return err.Error()
+	}
+
 	imgData, err := base64.StdEncoding.DecodeString(payload.Data)
 	fileName := uuid.New().String()
 	if err != nil {
@@ -27,15 +37,29 @@ func (c *socketController) SendFileAuthFace(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Check num image for train
-	countFileFolder, errCountFileFolder := utils.CheckNumFolder("file_add_model")
-	if errCountFileFolder != nil {
-		return errCountFileFolder.Error()
+	pathCheckNumFolder := fmt.Sprintf("file_add_model/%s", auth)
+	countFileFolder, err := utils.CheckNumFolder(pathCheckNumFolder)
+	if err != nil {
+		return err.Error()
 	}
 	if countFileFolder == 10 {
+		if _, err := c.socketService.AddFaceEncoding(auth); err != nil {
+			return err.Error()
+		}
+
+		pendingPath := fmt.Sprintf("pending_file/%s", auth)
+		if err := os.RemoveAll(pendingPath); err != nil {
+			return err.Error()
+		}
+		addModelPath := fmt.Sprintf("file_add_model/%s", auth)
+		if err := os.RemoveAll(addModelPath); err != nil {
+			return err.Error()
+		}
+
 		return "done"
 	}
 
-	pathPending := fmt.Sprintf("pending_file/%s.png", fileName)
+	pathPending := fmt.Sprintf("pending_file/%s/%s.png", auth, fileName)
 	filePending, err := os.Create(pathPending)
 	if err != nil {
 		return err.Error()
@@ -47,9 +71,9 @@ func (c *socketController) SendFileAuthFace(w http.ResponseWriter, r *http.Reque
 
 	// Check face
 	cmdCheckFace := exec.Command("python3", "python_code/check_face.py", pathPending)
-	outputCheckFace, errCheckFace := cmdCheckFace.Output()
-	if errCheckFace != nil {
-		return errCheckFace.Error()
+	outputCheckFace, err := cmdCheckFace.Output()
+	if err != nil {
+		return err.Error()
 	}
 	var resultCheckFace bool
 	if err := json.Unmarshal(outputCheckFace, &resultCheckFace); err != nil {
@@ -64,7 +88,7 @@ func (c *socketController) SendFileAuthFace(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Add data model
-	pathAddModel := fmt.Sprintf("file_add_model/%s.png", fileName)
+	pathAddModel := fmt.Sprintf("file_add_model/%s/%s.png", auth, fileName)
 	fileAddModel, err := os.Create(pathAddModel)
 	if err != nil {
 		return err.Error()
@@ -79,5 +103,7 @@ func (c *socketController) SendFileAuthFace(w http.ResponseWriter, r *http.Reque
 }
 
 func NewSocketController() SocketController {
-	return &socketController{}
+	return &socketController{
+		socketService: service.NewSocketService(),
+	}
 }

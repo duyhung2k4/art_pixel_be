@@ -6,7 +6,10 @@ import (
 	"app/service"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/render"
@@ -31,22 +34,44 @@ func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newProfile, errNewProfile := c.authService.CreateProfilePending(registerReq)
-	if errNewProfile != nil {
-		internalServerError(w, r, errNewProfile)
+	existProfile, err := c.authService.CheckExistProfile(registerReq)
+	if err != nil {
+		internalServerError(w, r, err)
 		return
 	}
 
-	dataJsonString, errJsonString := json.Marshal(newProfile)
-	if errJsonString != nil {
-		internalServerError(w, r, errJsonString)
+	if existProfile {
+		internalServerError(w, r, errors.New("profile exist"))
+		return
+	}
+
+	newProfile, err := c.authService.CreateProfilePending(registerReq)
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	dataJsonString, err := json.Marshal(newProfile)
+	if err != nil {
+		internalServerError(w, r, err)
 		return
 	}
 
 	uuidKey := uuid.New().String()
-	errSetData := c.redisClient.SetNX(context.Background(), uuidKey, dataJsonString, 2*time.Minute).Err()
-	if errSetData != nil {
-		internalServerError(w, r, errSetData)
+	err = c.redisClient.SetNX(context.Background(), uuidKey, dataJsonString, 24*time.Hour).Err()
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	newFolderPending := fmt.Sprintf("pending_file/%s", uuidKey)
+	if err := os.Mkdir(newFolderPending, 0075); err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+	newFolderAddModel := fmt.Sprintf("file_add_model/%s", uuidKey)
+	if err := os.Mkdir(newFolderAddModel, 0075); err != nil {
+		internalServerError(w, r, err)
 		return
 	}
 

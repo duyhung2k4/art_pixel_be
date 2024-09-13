@@ -13,25 +13,25 @@ type authService struct {
 }
 
 type AuthService interface {
-	CheckExitProfile(registerReq request.RegisterReq) (bool, error)
+	CheckExistProfile(registerReq request.RegisterReq) (bool, error)
 	CreateProfilePending(registerReq request.RegisterReq) (*model.Profile, error)
 }
 
-func (s *authService) CheckExitProfile(registerReq request.RegisterReq) (bool, error) {
+func (s *authService) CheckExistProfile(registerReq request.RegisterReq) (bool, error) {
 	var profile *model.Profile
 
 	if err := s.psql.
 		Model(&model.Profile{}).
-		Where("email = ?", registerReq.Email).
+		Where("email = ? AND active = ?", registerReq.Email, true).
 		First(&profile).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return false, err
 	}
 
 	if profile != nil {
-		return false, nil
+		return true, nil
 	}
 
-	return true, nil
+	return false, nil
 }
 
 func (s *authService) CreateProfilePending(registerReq request.RegisterReq) (*model.Profile, error) {

@@ -7,17 +7,26 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/go-chi/render"
 )
 
 func AppRouter() http.Handler {
 	app := chi.NewRouter()
 
-	// A good base middleware stack
 	app.Use(middleware.RequestID)
 	app.Use(middleware.RealIP)
 	app.Use(middleware.Logger)
 	app.Use(middleware.Recoverer)
+
+	app.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 
 	app.Route("/test", func(test chi.Router) {
 		test.Get("/v1", func(w http.ResponseWriter, r *http.Request) {

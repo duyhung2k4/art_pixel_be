@@ -11,4 +11,5 @@ func init() {
 	loadEnv()
 	connectPostgresql(*db)
 	connectRedis()
+	createFolder()
 }
