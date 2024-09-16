@@ -24,6 +24,7 @@ type authController struct {
 
 type AuthController interface {
 	Register(w http.ResponseWriter, r *http.Request)
+	SendFileAuth(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +81,24 @@ func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
 		Message: "OK",
 		Error:   nil,
 		Status:  200,
+	}
+
+	render.JSON(w, r, res)
+}
+
+func (c *authController) SendFileAuth(w http.ResponseWriter, r *http.Request) {
+	var fileReq request.SendFileAuthFaceReq
+	err := json.NewDecoder(r.Body).Decode(&fileReq)
+	if err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	res := Response{
+		Data:    nil,
+		Message: "OK",
+		Status:  200,
+		Error:   nil,
 	}
 
 	render.JSON(w, r, res)

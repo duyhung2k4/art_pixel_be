@@ -10,6 +10,6 @@ type SocketRequest struct {
 	Data map[string]interface{} `json:"data"`
 }
 
-type SendFileAuthFaceReq struct {
-	Data string `json:"data"`
-}
+// type SendFileAuthFaceReq struct {
+// 	Data string `json:"data"`
+// }

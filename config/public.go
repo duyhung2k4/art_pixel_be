@@ -1,6 +1,8 @@
 package config
 
 import (
+	"github.com/gorilla/websocket"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -23,4 +25,16 @@ func GetSocketPort() string {
 
 func GetRedisClient() *redis.Client {
 	return redisClient
+}
+
+func GetUpgraderSocket() *websocket.Upgrader {
+	return upgraderSocket
+}
+
+func GetMapSocket() map[string]*websocket.Conn {
+	return mapSocket
+}
+
+func GetRabbitmq() *amqp091.Connection {
+	return rabbitmq
 }

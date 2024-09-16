@@ -23,4 +23,5 @@ func loadEnv() {
 	dbUser = os.Getenv(DB_USER)
 	dbPassword = os.Getenv(DB_PASSWORD)
 	redisUrl = os.Getenv(REDIS_URL)
+	rabbitmqUrl = os.Getenv(RABBITMQ_URL)
 }

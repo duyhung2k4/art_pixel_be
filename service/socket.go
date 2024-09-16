@@ -14,8 +14,8 @@ import (
 )
 
 type socketService struct {
-	db  *gorm.DB
-	rdb *redis.Client
+	psql *gorm.DB
+	rdb  *redis.Client
 }
 
 type SocketService interface {
@@ -60,11 +60,11 @@ func (s *socketService) AddFaceEncoding(auth string) ([]model.Face, error) {
 		})
 	}
 
-	if err := s.db.Create(&newListFaceEncoding).Error; err != nil {
+	if err := s.psql.Create(&newListFaceEncoding).Error; err != nil {
 		return nil, err
 	}
 
-	if err := s.db.Model(&model.Profile{}).
+	if err := s.psql.Model(&model.Profile{}).
 		Where("id = ?", profile.ID).
 		Updates(&model.Profile{Active: true}).
 		Error; err != nil {
@@ -76,7 +76,7 @@ func (s *socketService) AddFaceEncoding(auth string) ([]model.Face, error) {
 
 func NewSocketService() SocketService {
 	return &socketService{
-		db:  config.GetPsql(),
-		rdb: config.GetRedisClient(),
+		psql: config.GetPsql(),
+		rdb:  config.GetRedisClient(),
 	}
 }

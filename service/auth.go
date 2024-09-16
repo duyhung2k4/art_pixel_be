@@ -27,7 +27,7 @@ func (s *authService) CheckExistProfile(registerReq request.RegisterReq) (bool, 
 		return false, err
 	}
 
-	if profile != nil {
+	if profile.ID != 0 {
 		return true, nil
 	}
 
