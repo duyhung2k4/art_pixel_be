@@ -11,5 +11,6 @@ func RouterV1(router chi.Router) {
 
 	router.Route("/auth", func(auth chi.Router) {
 		auth.Post("/register", authController.Register)
+		auth.Post("/send-file-auth", authController.SendFileAuth)
 	})
 }

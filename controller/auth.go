@@ -2,6 +2,8 @@ package controller
 
 import (
 	"app/config"
+	"app/constant"
+	queuepayload "app/dto/queue_payload"
 	"app/dto/request"
 	"app/service"
 	"context"
@@ -10,14 +12,17 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 )
 
 type authController struct {
+	rabbitmq    *amqp091.Connection
 	authService service.AuthService
 	redisClient *redis.Client
 }
@@ -88,9 +93,50 @@ func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
 
 func (c *authController) SendFileAuth(w http.ResponseWriter, r *http.Request) {
 	var fileReq request.SendFileAuthFaceReq
+	uuid := strings.Split(r.Header.Get("authorization"), " ")[1]
+
+	if len(uuid) == 0 {
+		badRequest(w, r, errors.New("not found uuid"))
+		return
+	}
+
 	err := json.NewDecoder(r.Body).Decode(&fileReq)
 	if err != nil {
 		badRequest(w, r, err)
+		return
+	}
+
+	ch, err := c.rabbitmq.Channel()
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	dataMess := queuepayload.SendFileAuthMess{
+		Data: fileReq.Data,
+		Uuid: uuid,
+	}
+
+	dataMessString, err := json.Marshal(dataMess)
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	err = ch.PublishWithContext(
+		context.Background(),
+		"",
+		string(constant.SEND_FILE_AUTH_QUEUE),
+		false,
+		false,
+		amqp091.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte(dataMessString),
+		},
+	)
+
+	if err != nil {
+		internalServerError(w, r, err)
 		return
 	}
 
@@ -106,6 +152,7 @@ func (c *authController) SendFileAuth(w http.ResponseWriter, r *http.Request) {
 
 func NewAuthController() AuthController {
 	return &authController{
+		rabbitmq:    config.GetRabbitmq(),
 		redisClient: config.GetRedisClient(),
 		authService: service.NewAuthService(),
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"app/config"
+	"app/rabbitmq"
 	"app/router"
 	"app/socket"
 	"log"
@@ -13,7 +14,7 @@ import (
 func main() {
 	var wg sync.WaitGroup
 
-	wg.Add(2)
+	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
@@ -39,6 +40,11 @@ func main() {
 		}
 
 		log.Fatalln(socker.ListenAndServe())
+	}()
+
+	go func() {
+		defer wg.Done()
+		rabbitmq.RunRabbitmq()
 	}()
 
 	wg.Wait()
