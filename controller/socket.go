@@ -1,108 +1,76 @@
 package controller
 
-// import (
-// 	"app/dto/request"
-// 	"app/service"
-// 	"app/utils"
-// 	"encoding/base64"
-// 	"encoding/json"
-// 	"fmt"
-// 	"net/http"
-// 	"os"
-// 	"os/exec"
+import (
+	"app/config"
+	"errors"
+	"log"
+	"net/http"
+	"sync"
 
-// 	"github.com/google/uuid"
-// )
+	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
+)
 
-// type socketController struct {
-// 	socketService service.SocketService
-// }
+type socketController struct {
+	redisClient *redis.Client
+	upgrader    *websocket.Upgrader
+	mutexSocket *sync.Mutex
+	mapSocket   map[string]*websocket.Conn
+}
 
-// type SocketController interface {
-// 	SendFileAuthFace(w http.ResponseWriter, r *http.Request, jsonData []byte, auth string) string
-// }
+type SocketController interface {
+	AuthSocket(w http.ResponseWriter, r *http.Request)
+}
 
-// func (c *socketController) SendFileAuthFace(w http.ResponseWriter, r *http.Request, jsonData []byte, auth string) string {
-// 	var payload request.SendFileAuthFaceReq
+func (c *socketController) AuthSocket(w http.ResponseWriter, r *http.Request) {
+	// check auth with uuid
+	query := r.URL.Query()
+	uuid := query.Get("uuid")
+	if uuid == "" {
+		badRequest(w, r, errors.New("uuid not found"))
+		return
+	}
 
-// 	if err := json.Unmarshal(jsonData, &payload); err != nil {
-// 		return err.Error()
-// 	}
+	// check uuid exist in redis
+	infoProfile, err := c.redisClient.Get(r.Context(), uuid).Result()
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+	if infoProfile == "" {
+		internalServerError(w, r, errors.New("uuid not found in redis"))
+		return
+	}
 
-// 	imgData, err := base64.StdEncoding.DecodeString(payload.Data)
-// 	fileName := uuid.New().String()
-// 	if err != nil {
-// 		return err.Error()
-// 	}
+	// create connect
+	conn, err := c.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Print("upgrade:", err)
+		return
+	}
+	defer conn.Close()
 
-// 	// Check num image for train
-// 	pathCheckNumFolder := fmt.Sprintf("file_add_model/%s", auth)
-// 	countFileFolder, err := utils.CheckNumFolder(pathCheckNumFolder)
-// 	if err != nil {
-// 		return err.Error()
-// 	}
-// 	if countFileFolder == 10 {
-// 		if _, err := c.socketService.AddFaceEncoding(auth); err != nil {
-// 			return err.Error()
-// 		}
+	//connect -> map socket
+	c.mutexSocket.Lock()
+	c.mapSocket[uuid] = conn
+	c.mutexSocket.Unlock()
 
-// 		pendingPath := fmt.Sprintf("pending_file/%s", auth)
-// 		if err := os.RemoveAll(pendingPath); err != nil {
-// 			return err.Error()
-// 		}
-// 		addModelPath := fmt.Sprintf("file_add_model/%s", auth)
-// 		if err := os.RemoveAll(addModelPath); err != nil {
-// 			return err.Error()
-// 		}
+	// listen connect
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			log.Println("read:", err)
+			break
+		}
+	}
 
-// 		return "done"
-// 	}
+	log.Printf("Disconnect")
+}
 
-// 	pathPending := fmt.Sprintf("pending_file/%s/%s.png", auth, fileName)
-// 	filePending, err := os.Create(pathPending)
-// 	if err != nil {
-// 		return err.Error()
-// 	}
-// 	_, err = filePending.Write(imgData)
-// 	if err != nil {
-// 		return err.Error()
-// 	}
-
-// 	// Check face
-// 	cmdCheckFace := exec.Command("python3", "python_code/check_face.py", pathPending)
-// 	outputCheckFace, err := cmdCheckFace.Output()
-// 	if err != nil {
-// 		return err.Error()
-// 	}
-// 	var resultCheckFace bool
-// 	if err := json.Unmarshal(outputCheckFace, &resultCheckFace); err != nil {
-// 		return err.Error()
-// 	}
-// 	if !resultCheckFace {
-// 		if err := os.Remove(pathPending); err != nil {
-// 			return err.Error()
-// 		}
-
-// 		return "image not a face!"
-// 	}
-
-// 	// Add data model
-// 	pathAddModel := fmt.Sprintf("file_add_model/%s/%s.png", auth, fileName)
-// 	fileAddModel, err := os.Create(pathAddModel)
-// 	if err != nil {
-// 		return err.Error()
-// 	}
-
-// 	_, err = fileAddModel.Write(imgData)
-// 	if err != nil {
-// 		return err.Error()
-// 	}
-
-// 	return "not enough data"
-// }
-
-// func NewSocketController() SocketController {
-// 	return &socketController{
-// 		socketService: service.NewSocketService(),
-// 	}
-// }
+func NewSocketController() SocketController {
+	return &socketController{
+		mutexSocket: new(sync.Mutex),
+		redisClient: config.GetRedisClient(),
+		upgrader:    config.GetUpgraderSocket(),
+		mapSocket:   config.GetMapSocket(),
+	}
+}

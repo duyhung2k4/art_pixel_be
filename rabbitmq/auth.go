@@ -4,17 +4,20 @@ import (
 	"app/config"
 	"app/constant"
 	queuepayload "app/dto/queue_payload"
+	"app/service"
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/rabbitmq/amqp091-go"
 )
 
 type queueAuth struct {
-	rabbitmq  *amqp091.Connection
-	mapSocket map[string]*websocket.Conn
+	rabbitmq    *amqp091.Connection
+	mapSocket   map[string]*websocket.Conn
+	authService service.AuthService
 }
 
 type QueueAuth interface {
@@ -59,27 +62,42 @@ func (q *queueAuth) InitQueueSendFileAuth() {
 		return
 	}
 
+	var wg sync.WaitGroup
 	for msg := range msgs {
-		var dataMess queuepayload.SendFileAuthMess
-		if err := json.Unmarshal(msg.Body, &dataMess); err != nil {
-			msg.Ack(true)
-			continue
-		}
+		wg.Add(1)
+		go func(msg amqp091.Delivery) {
+			defer wg.Done()
+			msg.Ack(false)
 
-		socket := q.mapSocket[dataMess.Uuid]
-		if socket == nil {
-			msg.Ack(true)
-			continue
-		}
+			var dataMess queuepayload.SendFileAuthMess
+			if err := json.Unmarshal(msg.Body, &dataMess); err != nil {
+				// msg.Ack(false)
+				return
+			}
 
-		socket.WriteMessage(websocket.TextMessage, []byte("done cc"))
-		msg.Ack(false)
+			socket := q.mapSocket[dataMess.Uuid]
+			if socket == nil {
+				// msg.Ack(false)
+				return
+			}
+
+			result, err := q.authService.CheckFace(dataMess)
+			if err != nil {
+				socket.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+				// msg.Ack(false)
+				return
+			}
+
+			socket.WriteMessage(websocket.TextMessage, []byte(result))
+			// msg.Ack(false)
+		}(msg)
 	}
 }
 
 func NewQueueAuth() QueueAuth {
 	return &queueAuth{
-		rabbitmq:  config.GetRabbitmq(),
-		mapSocket: config.GetMapSocket(),
+		rabbitmq:    config.GetRabbitmq(),
+		mapSocket:   config.GetMapSocket(),
+		authService: service.NewAuthService(),
 	}
 }
