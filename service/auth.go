@@ -29,6 +29,8 @@ type AuthService interface {
 	CheckExistProfile(registerReq request.RegisterReq) (bool, error)
 	CreateProfilePending(registerReq request.RegisterReq) (*model.Profile, error)
 	CheckFace(payload queuepayload.SendFileAuthMess) (string, error)
+	CreateFileAuthFace(data request.AuthFaceReq) (string, error)
+	AuthFace(payload queuepayload.FaceAuth) (bool, error)
 
 	saveFileAuth(auth string) error
 }
@@ -129,6 +131,80 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 	}
 
 	return "not enough data", nil
+}
+
+func (s *authService) CreateFileAuthFace(data request.AuthFaceReq) (string, error) {
+	base64Data := data.Data
+	imgData, err := base64.StdEncoding.DecodeString(base64Data[strings.IndexByte(base64Data, ',')+1:])
+	fileName := uuid.New().String()
+
+	if err != nil {
+		return "", err
+	}
+
+	path := fmt.Sprintf("file/auth_face/%s.png", fileName)
+	file, err := os.Create(path)
+	if err != nil {
+		return "", err
+	}
+	_, err = file.Write(imgData)
+	if err != nil {
+		return "", err
+	}
+
+	return path, nil
+}
+
+func (s *authService) AuthFace(payload queuepayload.FaceAuth) (bool, error) {
+	var faces []model.Face
+
+	if err := s.psql.Model(&model.Face{}).Find(&faces).Error; err != nil {
+		return false, err
+	}
+
+	data := map[string]interface{}{
+		"faces":            faces,
+		"input_image_path": payload.FilePath,
+	}
+
+	// Ghi JSON vào file tạm
+	jsonPath := fmt.Sprintf("file/json/%s.json", uuid.New().String())
+	tempFile, err := os.Create(jsonPath)
+	if err != nil {
+		return false, err
+	}
+	defer os.Remove(tempFile.Name()) // Xóa file tạm sau khi sử dụng
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return false, err
+	}
+
+	if _, err := tempFile.Write(jsonData); err != nil {
+		log.Println(err)
+		return false, err
+	}
+
+	// Gọi Python với tên file chứa dữ liệu JSON
+	cmd := exec.Command("python3", "python_code/auth_face.py", tempFile.Name())
+	// cmd.Stderr = os.Stderr // Ghi lỗi từ Python ra stderr
+	output, err := cmd.Output()
+	if err != nil {
+		log.Println("Error executing Python script:", err)
+		log.Println("Python script error output:", string(output))
+		return false, err
+	}
+
+	var profileId int
+	if err := json.Unmarshal(output, &profileId); err != nil {
+		return false, err
+	}
+
+	if profileId < 0 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (s *authService) saveFileAuth(auth string) error {

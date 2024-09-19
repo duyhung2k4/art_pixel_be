@@ -22,6 +22,7 @@ type queueAuth struct {
 
 type QueueAuth interface {
 	InitQueueSendFileAuth()
+	InitQueueAuthFace()
 }
 
 func (q *queueAuth) InitQueueSendFileAuth() {
@@ -48,13 +49,13 @@ func (q *queueAuth) InitQueueSendFileAuth() {
 	}
 
 	msgs, err := ch.Consume(
-		queueName, // Tên queue
-		"",        // Consumer name (để trống để RabbitMQ tự tạo)
-		false,     // Auto-Ack (đặt là false để dùng thủ công acknowledgment)
-		false,     // Exclusive (chỉ được dùng cho connection hiện tại)
-		false,     // No-local (chỉ dành cho các message local)
-		false,     // No-wait (không chờ RabbitMQ trả lời)
-		nil,       // Thêm các option khác (nếu cần)
+		queueName,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
 	)
 
 	if err != nil {
@@ -71,25 +72,97 @@ func (q *queueAuth) InitQueueSendFileAuth() {
 
 			var dataMess queuepayload.SendFileAuthMess
 			if err := json.Unmarshal(msg.Body, &dataMess); err != nil {
-				// msg.Ack(false)
+
 				return
 			}
 
 			socket := q.mapSocket[dataMess.Uuid]
 			if socket == nil {
-				// msg.Ack(false)
+
 				return
 			}
 
 			result, err := q.authService.CheckFace(dataMess)
 			if err != nil {
 				socket.WriteMessage(websocket.TextMessage, []byte(err.Error()))
-				// msg.Ack(false)
+
 				return
 			}
 
 			socket.WriteMessage(websocket.TextMessage, []byte(result))
-			// msg.Ack(false)
+
+		}(msg)
+	}
+}
+
+func (q *queueAuth) InitQueueAuthFace() {
+	ch, err := q.rabbitmq.Channel()
+	if err != nil {
+		log.Println("Failed to open a channel:", err)
+		return
+	}
+	defer ch.Close()
+
+	queueName := fmt.Sprint(constant.FACE_AUTH_QUEUE)
+	_, err = ch.QueueDeclare(
+		queueName,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+
+	if err != nil {
+		log.Println("Failed to declare a queue:", err)
+		return
+	}
+
+	msgs, err := ch.Consume(
+		queueName,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+
+	if err != nil {
+		log.Println("Failed to register a consumer:", err)
+		return
+	}
+
+	var wg sync.WaitGroup
+	for msg := range msgs {
+		wg.Add(1)
+		go func(msg amqp091.Delivery) {
+			defer wg.Done()
+			msg.Ack(false)
+
+			var dataMess queuepayload.FaceAuth
+			if err := json.Unmarshal(msg.Body, &dataMess); err != nil {
+
+				return
+			}
+
+			socket := q.mapSocket[dataMess.Uuid]
+			if socket == nil {
+				return
+			}
+
+			result, err := q.authService.AuthFace(dataMess)
+			if err != nil {
+				socket.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+				return
+			}
+
+			if result {
+				socket.WriteMessage(websocket.TextMessage, []byte("true"))
+			} else {
+				socket.WriteMessage(websocket.TextMessage, []byte("false"))
+			}
+
 		}(msg)
 	}
 }

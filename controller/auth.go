@@ -30,6 +30,8 @@ type authController struct {
 type AuthController interface {
 	Register(w http.ResponseWriter, r *http.Request)
 	SendFileAuth(w http.ResponseWriter, r *http.Request)
+	AuthFace(w http.ResponseWriter, r *http.Request)
+	CreateSocketAuthFace(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
@@ -142,6 +144,82 @@ func (c *authController) SendFileAuth(w http.ResponseWriter, r *http.Request) {
 
 	res := Response{
 		Data:    nil,
+		Message: "OK",
+		Status:  200,
+		Error:   nil,
+	}
+
+	render.JSON(w, r, res)
+}
+
+func (c *authController) AuthFace(w http.ResponseWriter, r *http.Request) {
+	var authFaceReq request.AuthFaceReq
+	if err := json.NewDecoder(r.Body).Decode(&authFaceReq); err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	uuid := strings.Split(r.Header.Get("authorization"), " ")[1]
+	if len(uuid) == 0 {
+		badRequest(w, r, errors.New("not found uuid"))
+		return
+	}
+
+	path, err := c.authService.CreateFileAuthFace(authFaceReq)
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	ch, err := c.rabbitmq.Channel()
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	dataMess := queuepayload.FaceAuth{
+		FilePath: path,
+		Uuid:     uuid,
+	}
+
+	dataMessString, err := json.Marshal(dataMess)
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	err = ch.PublishWithContext(
+		context.Background(),
+		"",
+		string(constant.FACE_AUTH_QUEUE),
+		false,
+		false,
+		amqp091.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte(dataMessString),
+		},
+	)
+
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	res := Response{
+		Data:    nil,
+		Message: "OK",
+		Status:  200,
+		Error:   nil,
+	}
+
+	render.JSON(w, r, res)
+}
+
+func (c *authController) CreateSocketAuthFace(w http.ResponseWriter, r *http.Request) {
+	uuid := uuid.New().String()
+
+	res := Response{
+		Data:    uuid,
 		Message: "OK",
 		Status:  200,
 		Error:   nil,

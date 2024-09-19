@@ -9,3 +9,7 @@ type RegisterReq struct {
 type SendFileAuthFaceReq struct {
 	Data string `json:"data"`
 }
+
+type AuthFaceReq struct {
+	Data string `json:"data"`
+}
