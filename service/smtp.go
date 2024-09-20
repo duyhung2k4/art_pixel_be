@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/smtp"
 	"time"
@@ -35,7 +36,17 @@ func (s *smtpService) SendCodeAcceptRegister(auth string) error {
 		return err
 	}
 
+	key := fmt.Sprintf("code_%s", auth)
+	existCode, err := s.redisClient.Get(context.Background(), key).Result()
+	if err != nil && err != redis.Nil {
+		return err
+	}
+	if existCode != "" {
+		return nil
+	}
+
 	code := fmt.Sprintf("%d", rand.Intn(900000)+100000)
+	log.Println(code)
 
 	to := []string{profile.Email}
 	msg := []byte(code)
@@ -45,7 +56,6 @@ func (s *smtpService) SendCodeAcceptRegister(auth string) error {
 		return err
 	}
 
-	key := fmt.Sprintf("code_%s", auth)
 	err = s.redisClient.SetNX(context.Background(), key, code, 3*60*time.Second).Err()
 	if err != nil {
 		return err

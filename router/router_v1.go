@@ -13,6 +13,7 @@ func RouterV1(router chi.Router) {
 		auth.Post("/register", authController.Register)
 		auth.Post("/auth-face", authController.AuthFace)
 		auth.Post("/accept-code", authController.AcceptCode)
+		auth.Post("/save-process", authController.SaveProcess)
 		auth.Post("/send-file-auth", authController.SendFileAuth)
 		auth.Post("/create-socket-auth-face", authController.CreateSocketAuthFace)
 	})

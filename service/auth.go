@@ -33,8 +33,7 @@ type AuthService interface {
 	CreateFileAuthFace(data request.AuthFaceReq) (string, error)
 	AuthFace(payload queuepayload.FaceAuth) (bool, error)
 	ActiveProfile(auth string) error
-
-	saveFileAuth(auth string) error
+	SaveFileAuth(auth string) error
 }
 
 func (s *authService) CheckExistProfile(registerReq request.RegisterReq) (bool, error) {
@@ -79,23 +78,16 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 	}
 
 	// Check num image for train
-	pathCheckNumFolder := fmt.Sprintf("file_add_model/%s", payload.Uuid)
+	pathCheckNumFolder := fmt.Sprintf("file/file_add_model/%s", payload.Uuid)
 	countFileFolder, err := utils.CheckNumFolder(pathCheckNumFolder)
 	if err != nil {
 		return "", err
 	}
 	if countFileFolder >= 10 {
-		if err := s.saveFileAuth(payload.Uuid); err != nil {
-			return "", err
-		}
-		if err := s.smtpService.SendCodeAcceptRegister(payload.Uuid); err != nil {
-			return "", err
-		}
-
 		return "done", nil
 	}
 
-	pathPending := fmt.Sprintf("pending_file/%s/%s.png", payload.Uuid, fileName)
+	pathPending := fmt.Sprintf("file/pending_file/%s/%s.png", payload.Uuid, fileName)
 	filePending, err := os.Create(pathPending)
 	if err != nil {
 		return "", err
@@ -124,7 +116,7 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 	}
 
 	// Add data model
-	pathAddModel := fmt.Sprintf("file_add_model/%s/%s.png", payload.Uuid, fileName)
+	pathAddModel := fmt.Sprintf("file/file_add_model/%s/%s.png", payload.Uuid, fileName)
 	fileAddModel, err := os.Create(pathAddModel)
 	if err != nil {
 		return "", err
@@ -235,9 +227,9 @@ func (s *authService) ActiveProfile(auth string) error {
 	return nil
 }
 
-func (s *authService) saveFileAuth(auth string) error {
+func (s *authService) SaveFileAuth(auth string) error {
 	// convert data file add model
-	pathFileAddModel := fmt.Sprintf("file_add_model/%s", auth)
+	pathFileAddModel := fmt.Sprintf("file/file_add_model/%s", auth)
 	cmdFaceEndcoding := exec.Command("python3", "python_code/face_encoding.py", pathFileAddModel)
 	outputCheckFace, err := cmdFaceEndcoding.Output()
 
@@ -281,11 +273,11 @@ func (s *authService) saveFileAuth(auth string) error {
 	// }
 
 	// delete pending file
-	pendingPath := fmt.Sprintf("pending_file/%s", auth)
+	pendingPath := fmt.Sprintf("file/pending_file/%s", auth)
 	if err := os.RemoveAll(pendingPath); err != nil {
 		return err
 	}
-	addModelPath := fmt.Sprintf("file_add_model/%s", auth)
+	addModelPath := fmt.Sprintf("file/file_add_model/%s", auth)
 	if err := os.RemoveAll(addModelPath); err != nil {
 		return err
 	}

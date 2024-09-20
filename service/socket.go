@@ -26,7 +26,7 @@ func (s *socketService) AddFaceEncoding(auth string) ([]model.Face, error) {
 	var newListFaceEncoding []model.Face
 
 	// Get images in file add model
-	path := fmt.Sprintf("file_add_model/%s", auth)
+	path := fmt.Sprintf("file/file_add_model/%s", auth)
 	cmd := exec.Command("python3", "python_code/face_encoding.py", path)
 	output, err := cmd.Output()
 	if err != nil {

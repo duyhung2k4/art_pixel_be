@@ -23,8 +23,9 @@ import (
 
 type authController struct {
 	rabbitmq    *amqp091.Connection
-	authService service.AuthService
 	redisClient *redis.Client
+	authService service.AuthService
+	smtpService service.SmtpService
 }
 
 type AuthController interface {
@@ -33,6 +34,7 @@ type AuthController interface {
 	AuthFace(w http.ResponseWriter, r *http.Request)
 	CreateSocketAuthFace(w http.ResponseWriter, r *http.Request)
 	AcceptCode(w http.ResponseWriter, r *http.Request)
+	SaveProcess(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
@@ -73,12 +75,12 @@ func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newFolderPending := fmt.Sprintf("pending_file/%s", uuidKey)
+	newFolderPending := fmt.Sprintf("file/pending_file/%s", uuidKey)
 	if err := os.Mkdir(newFolderPending, 0075); err != nil {
 		internalServerError(w, r, err)
 		return
 	}
-	newFolderAddModel := fmt.Sprintf("file_add_model/%s", uuidKey)
+	newFolderAddModel := fmt.Sprintf("file/file_add_model/%s", uuidKey)
 	if err := os.Mkdir(newFolderAddModel, 0075); err != nil {
 		internalServerError(w, r, err)
 		return
@@ -243,7 +245,8 @@ func (c *authController) AcceptCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	code, err := c.redisClient.Get(r.Context(), uuid).Result()
+	key := fmt.Sprintf("code_%s", uuid)
+	code, err := c.redisClient.Get(r.Context(), key).Result()
 	if err != nil {
 		internalServerError(w, r, err)
 		return
@@ -270,10 +273,33 @@ func (c *authController) AcceptCode(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, res)
 }
 
+func (c *authController) SaveProcess(w http.ResponseWriter, r *http.Request) {
+	uuid := strings.Split(r.Header.Get("authorization"), " ")[1]
+
+	if err := c.authService.SaveFileAuth(uuid); err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+	if err := c.smtpService.SendCodeAcceptRegister(uuid); err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	res := Response{
+		Data:    nil,
+		Message: "OK",
+		Status:  200,
+		Error:   nil,
+	}
+
+	render.JSON(w, r, res)
+}
+
 func NewAuthController() AuthController {
 	return &authController{
 		rabbitmq:    config.GetRabbitmq(),
 		redisClient: config.GetRedisClient(),
 		authService: service.NewAuthService(),
+		smtpService: service.NewSmtpService(),
 	}
 }
