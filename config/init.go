@@ -17,4 +17,5 @@ func init() {
 	createFolder()
 	initSocket()
 	connectRabbitmq()
+	initSmptAuth()
 }

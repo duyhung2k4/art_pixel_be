@@ -1,6 +1,8 @@
 package config
 
 import (
+	"net/smtp"
+
 	"github.com/gorilla/websocket"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
@@ -37,4 +39,16 @@ func GetMapSocket() map[string]*websocket.Conn {
 
 func GetRabbitmq() *amqp091.Connection {
 	return rabbitmq
+}
+
+func GetSmtpPort() string {
+	return smtpPort
+}
+
+func GetSmtpHost() string {
+	return smtpHost
+}
+
+func GetAuthSmtp() smtp.Auth {
+	return authSmtp
 }

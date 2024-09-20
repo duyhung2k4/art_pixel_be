@@ -21,8 +21,9 @@ import (
 )
 
 type authService struct {
-	psql  *gorm.DB
-	redis *redis.Client
+	psql        *gorm.DB
+	redis       *redis.Client
+	smtpService SmtpService
 }
 
 type AuthService interface {
@@ -31,6 +32,7 @@ type AuthService interface {
 	CheckFace(payload queuepayload.SendFileAuthMess) (string, error)
 	CreateFileAuthFace(data request.AuthFaceReq) (string, error)
 	AuthFace(payload queuepayload.FaceAuth) (bool, error)
+	ActiveProfile(auth string) error
 
 	saveFileAuth(auth string) error
 }
@@ -84,6 +86,9 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 	}
 	if countFileFolder >= 10 {
 		if err := s.saveFileAuth(payload.Uuid); err != nil {
+			return "", err
+		}
+		if err := s.smtpService.SendCodeAcceptRegister(payload.Uuid); err != nil {
 			return "", err
 		}
 
@@ -207,6 +212,29 @@ func (s *authService) AuthFace(payload queuepayload.FaceAuth) (bool, error) {
 	return true, nil
 }
 
+func (s *authService) ActiveProfile(auth string) error {
+	var profile model.Profile
+	profileJson, err := s.redis.Get(context.Background(), auth).Result()
+
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal([]byte(profileJson), &profile); err != nil {
+		return err
+	}
+
+	if err := s.psql.
+		Model(&model.Profile{}).
+		Where("id = ?", profile.ID).
+		Updates(&model.Profile{Active: true}).
+		Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *authService) saveFileAuth(auth string) error {
 	// convert data file add model
 	pathFileAddModel := fmt.Sprintf("file_add_model/%s", auth)
@@ -245,12 +273,12 @@ func (s *authService) saveFileAuth(auth string) error {
 		return err
 	}
 
-	if err := s.psql.
-		Model(&model.Profile{}).
-		Where("id = ?", profile.ID).
-		Updates(&model.Profile{Active: true}).Error; err != nil {
-		return err
-	}
+	// if err := s.psql.
+	// 	Model(&model.Profile{}).
+	// 	Where("id = ?", profile.ID).
+	// 	Updates(&model.Profile{Active: true}).Error; err != nil {
+	// 	return err
+	// }
 
 	// delete pending file
 	pendingPath := fmt.Sprintf("pending_file/%s", auth)
@@ -267,7 +295,8 @@ func (s *authService) saveFileAuth(auth string) error {
 
 func NewAuthService() AuthService {
 	return &authService{
-		redis: config.GetRedisClient(),
-		psql:  config.GetPsql(),
+		redis:       config.GetRedisClient(),
+		psql:        config.GetPsql(),
+		smtpService: NewSmtpService(),
 	}
 }

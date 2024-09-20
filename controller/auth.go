@@ -32,6 +32,7 @@ type AuthController interface {
 	SendFileAuth(w http.ResponseWriter, r *http.Request)
 	AuthFace(w http.ResponseWriter, r *http.Request)
 	CreateSocketAuthFace(w http.ResponseWriter, r *http.Request)
+	AcceptCode(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
@@ -220,6 +221,47 @@ func (c *authController) CreateSocketAuthFace(w http.ResponseWriter, r *http.Req
 
 	res := Response{
 		Data:    uuid,
+		Message: "OK",
+		Status:  200,
+		Error:   nil,
+	}
+
+	render.JSON(w, r, res)
+}
+
+func (c *authController) AcceptCode(w http.ResponseWriter, r *http.Request) {
+	uuid := strings.Split(r.Header.Get("authorization"), " ")[1]
+
+	if len(uuid) == 0 {
+		badRequest(w, r, errors.New("not found uuid"))
+		return
+	}
+
+	var payload request.AcceptCodeReq
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	code, err := c.redisClient.Get(r.Context(), uuid).Result()
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	if code != payload.Code {
+		internalServerError(w, r, errors.New("error code"))
+		return
+	}
+
+	err = c.authService.ActiveProfile(uuid)
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	res := Response{
+		Data:    nil,
 		Message: "OK",
 		Status:  200,
 		Error:   nil,

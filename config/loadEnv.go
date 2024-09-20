@@ -24,4 +24,8 @@ func loadEnv() {
 	dbPassword = os.Getenv(DB_PASSWORD)
 	redisUrl = os.Getenv(REDIS_URL)
 	rabbitmqUrl = os.Getenv(RABBITMQ_URL)
+	smtpEmail = os.Getenv(SMTP_EMAIL)
+	smtpHost = os.Getenv(SMTP_HOST)
+	smtpPort = os.Getenv(SMTP_PORT)
+	smtpPassword = os.Getenv(SMTP_PASSWORD)
 }

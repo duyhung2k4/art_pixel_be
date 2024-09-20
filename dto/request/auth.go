@@ -13,3 +13,7 @@ type SendFileAuthFaceReq struct {
 type AuthFaceReq struct {
 	Data string `json:"data"`
 }
+
+type AcceptCodeReq struct {
+	Code string `json:"code"`
+}
