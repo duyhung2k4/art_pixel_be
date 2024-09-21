@@ -37,6 +37,10 @@ func GetMapSocket() map[string]*websocket.Conn {
 	return mapSocket
 }
 
+func GetMapCheckSendEmail() map[string]bool {
+	return mapCheckSendEmail
+}
+
 func GetRabbitmq() *amqp091.Connection {
 	return rabbitmq
 }

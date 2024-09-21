@@ -32,5 +32,6 @@ var (
 	rabbitmq       *amqp091.Connection
 	upgraderSocket *websocket.Upgrader
 
-	mapSocket map[string]*websocket.Conn
+	mapSocket         map[string]*websocket.Conn
+	mapCheckSendEmail map[string]bool
 )

@@ -3,11 +3,12 @@ package service
 import (
 	"app/config"
 	"app/model"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os/exec"
+	"net/http"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -27,14 +28,41 @@ func (s *socketService) AddFaceEncoding(auth string) ([]model.Face, error) {
 
 	// Get images in file add model
 	path := fmt.Sprintf("file/file_add_model/%s", auth)
-	cmd := exec.Command("python3", "python_code/face_encoding.py", path)
-	output, err := cmd.Output()
+
+	// Tạo dữ liệu JSON để gửi đến API
+	data := map[string]string{
+		"directory_path": path,
+	}
+
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
-	var faceEncoding [][]float64
-	if err := json.Unmarshal(output, &faceEncoding); err != nil {
+
+	// Gửi yêu cầu POST đến API Flask
+	resp, err := http.Post("http://localhost:5000/face_encoding", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
 		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Kiểm tra mã trạng thái HTTP
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to call API, status code: %d", resp.StatusCode)
+	}
+
+	// Đọc phản hồi từ API
+	var response struct {
+		Result        string      `json:"result"`
+		FaceEncodings [][]float64 `json:"face_encodings"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+
+	// Kiểm tra kết quả từ API
+	if response.Result != "success" {
+		return nil, fmt.Errorf("API error: %s", response.Result)
 	}
 
 	// Get profile redis
@@ -53,7 +81,7 @@ func (s *socketService) AddFaceEncoding(auth string) ([]model.Face, error) {
 	}
 
 	// Create list Face
-	for _, data := range faceEncoding {
+	for _, data := range response.FaceEncodings {
 		newListFaceEncoding = append(newListFaceEncoding, model.Face{
 			ProfileId:    profile.ID,
 			FaceEncoding: data,

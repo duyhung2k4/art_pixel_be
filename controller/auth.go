@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/render"
@@ -22,10 +23,12 @@ import (
 )
 
 type authController struct {
-	rabbitmq    *amqp091.Connection
-	redisClient *redis.Client
-	authService service.AuthService
-	smtpService service.SmtpService
+	rabbitmq          *amqp091.Connection
+	redisClient       *redis.Client
+	authService       service.AuthService
+	smtpService       service.SmtpService
+	mapCheckSendEmail map[string]bool
+	mutex             *sync.Mutex
 }
 
 type AuthController interface {
@@ -85,6 +88,7 @@ func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
 		internalServerError(w, r, err)
 		return
 	}
+	c.mapCheckSendEmail[uuidKey] = false
 
 	res := Response{
 		Data:    uuidKey,
@@ -276,6 +280,15 @@ func (c *authController) AcceptCode(w http.ResponseWriter, r *http.Request) {
 func (c *authController) SaveProcess(w http.ResponseWriter, r *http.Request) {
 	uuid := strings.Split(r.Header.Get("authorization"), " ")[1]
 
+	if c.mapCheckSendEmail[uuid] {
+		internalServerError(w, r, errors.New("email sending"))
+		return
+	}
+
+	c.mutex.Lock()
+	c.mapCheckSendEmail[uuid] = true
+	c.mutex.Unlock()
+
 	if err := c.authService.SaveFileAuth(uuid); err != nil {
 		internalServerError(w, r, err)
 		return
@@ -297,9 +310,11 @@ func (c *authController) SaveProcess(w http.ResponseWriter, r *http.Request) {
 
 func NewAuthController() AuthController {
 	return &authController{
-		rabbitmq:    config.GetRabbitmq(),
-		redisClient: config.GetRedisClient(),
-		authService: service.NewAuthService(),
-		smtpService: service.NewSmtpService(),
+		mutex:             new(sync.Mutex),
+		rabbitmq:          config.GetRabbitmq(),
+		redisClient:       config.GetRedisClient(),
+		authService:       service.NewAuthService(),
+		smtpService:       service.NewSmtpService(),
+		mapCheckSendEmail: config.GetMapCheckSendEmail(),
 	}
 }

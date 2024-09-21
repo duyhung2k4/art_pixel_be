@@ -6,13 +6,15 @@ import (
 	"app/dto/request"
 	"app/model"
 	"app/utils"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -71,11 +73,12 @@ func (s *authService) CreateProfilePending(registerReq request.RegisterReq) (*mo
 func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, error) {
 	base64Data := payload.Data
 	imgData, err := base64.StdEncoding.DecodeString(base64Data[strings.IndexByte(base64Data, ',')+1:])
-	fileName := uuid.New().String()
 	if err != nil {
 		log.Println(err)
 		return "", err
 	}
+
+	fileName := uuid.New().String()
 
 	// Check num image for train
 	pathCheckNumFolder := fmt.Sprintf("file/file_add_model/%s", payload.Uuid)
@@ -87,40 +90,60 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 		return "done", nil
 	}
 
+	// Tạo file tạm thời từ dữ liệu ảnh
 	pathPending := fmt.Sprintf("file/pending_file/%s/%s.png", payload.Uuid, fileName)
 	filePending, err := os.Create(pathPending)
 	if err != nil {
 		return "", err
 	}
+	defer filePending.Close()
+
 	_, err = filePending.Write(imgData)
 	if err != nil {
 		return "", err
 	}
 
-	// Check face
-	cmdCheckFace := exec.Command("python3", "python_code/check_face.py", pathPending)
-	outputCheckFace, err := cmdCheckFace.Output()
+	payloadDetectFace, err := json.Marshal(map[string]interface{}{
+		"input_image_path": pathPending,
+	})
 	if err != nil {
 		return "", err
 	}
-	var resultCheckFace bool
-	if err := json.Unmarshal(outputCheckFace, &resultCheckFace); err != nil {
+
+	// Gọi API để kiểm tra khuôn mặt
+	resp, err := http.Post("http://localhost:5000/detect_single_face", "application/json", bytes.NewBuffer(payloadDetectFace))
+	if err != nil {
 		return "", err
 	}
-	if !resultCheckFace {
+	defer resp.Body.Close()
+
+	// Kiểm tra mã trạng thái HTTP
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to call API, status code: %d", resp.StatusCode)
+	}
+
+	// Đọc phản hồi từ API
+	var resultCheckFace struct {
+		Result bool `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&resultCheckFace); err != nil {
+		return "", err
+	}
+
+	if !resultCheckFace.Result {
 		if err := os.Remove(pathPending); err != nil {
 			return "", err
 		}
-
 		return "image not a face!", nil
 	}
 
-	// Add data model
+	// Thêm dữ liệu vào mô hình
 	pathAddModel := fmt.Sprintf("file/file_add_model/%s/%s.png", payload.Uuid, fileName)
 	fileAddModel, err := os.Create(pathAddModel)
 	if err != nil {
 		return "", err
 	}
+	defer fileAddModel.Close()
 
 	_, err = fileAddModel.Write(imgData)
 	if err != nil {
@@ -155,54 +178,53 @@ func (s *authService) CreateFileAuthFace(data request.AuthFaceReq) (string, erro
 func (s *authService) AuthFace(payload queuepayload.FaceAuth) (bool, error) {
 	var faces []model.Face
 
+	// Lấy danh sách khuôn mặt từ cơ sở dữ liệu
 	if err := s.psql.Model(&model.Face{}).Find(&faces).Error; err != nil {
 		return false, err
 	}
 
+	// Tạo dữ liệu JSON để gửi đến API
 	data := map[string]interface{}{
 		"faces":            faces,
 		"input_image_path": payload.FilePath,
 	}
-
-	// Ghi JSON vào file tạm
-	jsonPath := fmt.Sprintf("file/json/%s.json", uuid.New().String())
-	tempFile, err := os.Create(jsonPath)
-	if err != nil {
-		return false, err
-	}
-	defer os.Remove(tempFile.Name()) // Xóa file tạm sau khi sử dụng
-	defer os.Remove(payload.FilePath)
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return false, err
 	}
 
-	if _, err := tempFile.Write(jsonData); err != nil {
-		log.Println(err)
-		return false, err
-	}
-
-	// Gọi Python với tên file chứa dữ liệu JSON
-	cmd := exec.Command("python3", "python_code/auth_face.py", tempFile.Name())
-	// cmd.Stderr = os.Stderr // Ghi lỗi từ Python ra stderr
-	output, err := cmd.Output()
+	// Gửi yêu cầu POST đến API Flask
+	resp, err := http.Post("http://localhost:5000/recognize_faces", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		log.Println("Error executing Python script:", err)
-		log.Println("Python script error output:", string(output))
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	// Kiểm tra mã trạng thái HTTP
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("failed to call API, status code: %d", resp.StatusCode)
+	}
+
+	// Đọc phản hồi từ API
+	var response struct {
+		Result string `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return false, err
 	}
 
-	var profileId int
-	if err := json.Unmarshal(output, &profileId); err != nil {
+	// Xử lý kết quả từ API
+	if response.Result == "-1" {
+		return false, nil // Không tìm thấy khuôn mặt phù hợp
+	}
+
+	profileId, err := strconv.Atoi(response.Result)
+	if err != nil {
 		return false, err
 	}
 
-	if profileId < 0 {
-		return false, nil
-	}
-
-	return true, nil
+	return profileId >= 0, nil
 }
 
 func (s *authService) ActiveProfile(auth string) error {
@@ -229,21 +251,45 @@ func (s *authService) ActiveProfile(auth string) error {
 }
 
 func (s *authService) SaveFileAuth(auth string) error {
-	// convert data file add model
+	// Tạo đường dẫn đến thư mục chứa ảnh
 	pathFileAddModel := fmt.Sprintf("file/file_add_model/%s", auth)
-	cmdFaceEndcoding := exec.Command("python3", "python_code/face_encoding.py", pathFileAddModel)
-	outputCheckFace, err := cmdFaceEndcoding.Output()
 
+	// Tạo dữ liệu JSON để gửi đến API
+	data := map[string]interface{}{
+		"directory_path": pathFileAddModel,
+	}
+
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
 
-	var listImages [][]float64
-	if err := json.Unmarshal(outputCheckFace, &listImages); err != nil {
+	// Gửi yêu cầu POST đến API Flask
+	resp, err := http.Post("http://localhost:5000/face_encoding", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Kiểm tra mã trạng thái HTTP
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to call API, status code: %d", resp.StatusCode)
+	}
+
+	// Đọc phản hồi từ API
+	var response struct {
+		Result        string      `json:"result"`
+		FaceEncodings [][]float64 `json:"face_encodings"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return err
 	}
 
-	// get profile auth in redis
+	if response.Result != "success" {
+		return fmt.Errorf("API error: %s", response.Result)
+	}
+
+	// Lấy thông tin profile từ Redis
 	profileJson, err := s.redis.Get(context.Background(), auth).Result()
 	if err != nil {
 		return err
@@ -253,9 +299,9 @@ func (s *authService) SaveFileAuth(auth string) error {
 		return err
 	}
 
-	// add faces
+	// Thêm khuôn mặt vào danh sách
 	var faces []model.Face
-	for _, img := range listImages {
+	for _, img := range response.FaceEncodings {
 		faces = append(faces, model.Face{
 			ProfileId:    profile.ID,
 			FaceEncoding: img,
@@ -266,14 +312,7 @@ func (s *authService) SaveFileAuth(auth string) error {
 		return err
 	}
 
-	// if err := s.psql.
-	// 	Model(&model.Profile{}).
-	// 	Where("id = ?", profile.ID).
-	// 	Updates(&model.Profile{Active: true}).Error; err != nil {
-	// 	return err
-	// }
-
-	// delete pending file
+	// Xóa thư mục tạm
 	pendingPath := fmt.Sprintf("file/pending_file/%s", auth)
 	if err := os.RemoveAll(pendingPath); err != nil {
 		return err
