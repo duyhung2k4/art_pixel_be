@@ -171,6 +171,7 @@ func (s *authService) AuthFace(payload queuepayload.FaceAuth) (bool, error) {
 		return false, err
 	}
 	defer os.Remove(tempFile.Name()) // Xóa file tạm sau khi sử dụng
+	defer os.Remove(payload.FilePath)
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
