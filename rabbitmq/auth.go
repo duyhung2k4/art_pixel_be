@@ -4,8 +4,10 @@ import (
 	"app/config"
 	"app/constant"
 	queuepayload "app/dto/queue_payload"
+	"app/dto/response"
 	"app/service"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -24,6 +26,7 @@ type queueAuth struct {
 type QueueAuth interface {
 	InitQueueSendFileAuth()
 	InitQueueAuthFace()
+	sendMess(data interface{}, socket *websocket.Conn)
 }
 
 func (q *queueAuth) InitQueueSendFileAuth() {
@@ -140,6 +143,7 @@ func (q *queueAuth) InitQueueAuthFace() {
 		go func(msg amqp091.Delivery) {
 			defer wg.Done()
 			msg.Ack(false)
+			var res response.SocketErrorRes
 
 			var dataMess queuepayload.FaceAuth
 			if err := json.Unmarshal(msg.Body, &dataMess); err != nil {
@@ -153,16 +157,41 @@ func (q *queueAuth) InitQueueAuthFace() {
 
 			result, err := q.authService.AuthFace(dataMess)
 			if err != nil {
-				q.mutex.Lock()
-				socket.WriteMessage(websocket.TextMessage, []byte(err.Error()))
-				q.mutex.Unlock()
+				res.Error = err
+				q.sendMess(res, socket)
 				return
 			}
-			q.mutex.Lock()
-			socket.WriteMessage(websocket.TextMessage, []byte(fmt.Sprint(result)))
-			q.mutex.Unlock()
+
+			if result <= 0 {
+				res.Error = errors.New("profile not found")
+				q.sendMess(res, socket)
+				return
+			}
+
+			accessToken, refreshToken, err := q.authService.CreateToken(uint(result))
+			if err != nil {
+				res.Error = err
+				q.sendMess(res, socket)
+				return
+			}
+
+			res = response.SocketErrorRes{
+				Data: map[string]interface{}{
+					accessToken:  accessToken,
+					refreshToken: refreshToken,
+				},
+				Error: nil,
+			}
+			q.sendMess(res, socket)
 		}(msg)
 	}
+}
+
+func (q *queueAuth) sendMess(data interface{}, socket *websocket.Conn) {
+	dataByte, _ := json.Marshal(data)
+	q.mutex.Lock()
+	socket.WriteMessage(websocket.TextMessage, dataByte)
+	q.mutex.Unlock()
 }
 
 func NewQueueAuth() QueueAuth {

@@ -1,5 +1,6 @@
 package response
 
 type SocketErrorRes struct {
-	Mess string `json:"mess"`
+	Data  interface{} `json:"data"`
+	Error error       `json:"error"`
 }

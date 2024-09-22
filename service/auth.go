@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -26,6 +27,7 @@ type authService struct {
 	psql        *gorm.DB
 	redis       *redis.Client
 	smtpService SmtpService
+	jwtUtils    utils.JwtUtils
 }
 
 type AuthService interface {
@@ -36,6 +38,8 @@ type AuthService interface {
 	AuthFace(payload queuepayload.FaceAuth) (int, error)
 	ActiveProfile(auth string) error
 	SaveFileAuth(auth string) error
+	GetProfile(profileId uint) (*model.Profile, error)
+	CreateToken(profileId uint) (string, string, error)
 }
 
 func (s *authService) CheckExistProfile(registerReq request.RegisterReq) (bool, error) {
@@ -326,10 +330,68 @@ func (s *authService) SaveFileAuth(auth string) error {
 	return nil
 }
 
+func (s *authService) GetProfile(profileId uint) (*model.Profile, error) {
+	var profile *model.Profile
+	if err := s.psql.
+		Model(&model.Profile{}).
+		Where("id = ?", profileId).
+		First(&profile).
+		Error; err != nil {
+		return nil, err
+	}
+
+	return profile, nil
+}
+
+func (s *authService) CreateToken(profileId uint) (string, string, error) {
+	var profile *model.Profile
+
+	if err := s.psql.
+		Model(&model.Profile{}).
+		Where("id = ?", profileId).
+		First(&profile).
+		Error; err != nil {
+		return "", "", err
+	}
+
+	mapData := map[string]interface{}{
+		"profile_id": profile.ID,
+		"email":      profile.Email,
+	}
+
+	accessData := mapData
+	accessData["uuid"] = uuid.New()
+	accessData["exp"] = time.Now().Add(3 * time.Hour).Unix()
+	accessToken, err := s.jwtUtils.JwtEncode(accessData)
+	if err != nil {
+		return "", "", err
+	}
+
+	refreshData := mapData
+	refreshData["uuid"] = uuid.New()
+	refreshData["exp"] = time.Now().Add(3 * 3 * time.Hour).Unix()
+	refreshToken, err := s.jwtUtils.JwtEncode(refreshData)
+	if err != nil {
+		return "", "", err
+	}
+
+	err = s.redis.Set(context.Background(), "access_token:"+strconv.Itoa(int(profile.ID)), accessToken, 24*time.Hour).Err()
+	if err != nil {
+		return "", "", err
+	}
+	err = s.redis.Set(context.Background(), "refresh_token:"+strconv.Itoa(int(profile.ID)), refreshToken, 3*24*time.Hour).Err()
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
+}
+
 func NewAuthService() AuthService {
 	return &authService{
 		redis:       config.GetRedisClient(),
 		psql:        config.GetPsql(),
+		jwtUtils:    utils.NewJwtUtils(),
 		smtpService: NewSmtpService(),
 	}
 }

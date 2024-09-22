@@ -3,6 +3,7 @@ package config
 import (
 	"net/smtp"
 
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/gorilla/websocket"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
@@ -35,4 +36,5 @@ var (
 
 	mapSocket         map[string]*websocket.Conn
 	mapCheckSendEmail map[string]bool
+	jwt               *jwtauth.JWTAuth
 )

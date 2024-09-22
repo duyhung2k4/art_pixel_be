@@ -3,6 +3,7 @@ package config
 import (
 	"net/smtp"
 
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/gorilla/websocket"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
@@ -59,4 +60,8 @@ func GetSmtpHost() string {
 
 func GetAuthSmtp() smtp.Auth {
 	return authSmtp
+}
+
+func GetJWT() *jwtauth.JWTAuth {
+	return jwt
 }

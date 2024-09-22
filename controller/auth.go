@@ -6,12 +6,14 @@ import (
 	queuepayload "app/dto/queue_payload"
 	"app/dto/request"
 	"app/service"
+	"app/utils"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +31,9 @@ type authController struct {
 	smtpService       service.SmtpService
 	mapCheckSendEmail map[string]bool
 	mutex             *sync.Mutex
+	jwtUtils          utils.JwtUtils
+	rdb               *redis.Client
+	utils             utils.JwtUtils
 }
 
 type AuthController interface {
@@ -38,6 +43,7 @@ type AuthController interface {
 	CreateSocketAuthFace(w http.ResponseWriter, r *http.Request)
 	AcceptCode(w http.ResponseWriter, r *http.Request)
 	SaveProcess(w http.ResponseWriter, r *http.Request)
+	RefreshToken(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
@@ -308,6 +314,68 @@ func (c *authController) SaveProcess(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, res)
 }
 
+func (c *authController) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	tokenString := strings.Split(r.Header.Get("Authorization"), " ")[1]
+	mapDataRequest, errMapData := c.utils.JwtDecode(tokenString)
+
+	if errMapData != nil {
+		internalServerError(w, r, errMapData)
+		return
+	}
+
+	profileId := uint(mapDataRequest["profile_id"].(float64))
+	profileResponse, errProfile := c.authService.GetProfile(profileId)
+	if errProfile != nil {
+		internalServerError(w, r, errProfile)
+		return
+	}
+
+	mapData := map[string]interface{}{
+		"profile_id": profileResponse.ID,
+		"email":      profileResponse.Email,
+	}
+
+	accessData := mapData
+	accessData["uuid"] = uuid.New()
+	accessData["exp"] = time.Now().Add(3 * time.Hour).Unix()
+	accessToken, errAccessToken := c.jwtUtils.JwtEncode(accessData)
+	if errAccessToken != nil {
+		internalServerError(w, r, errAccessToken)
+		return
+	}
+
+	refreshData := mapData
+	refreshData["uuid"] = uuid.New()
+	refreshData["exp"] = time.Now().Add(3 * 3 * time.Hour).Unix()
+	refreshToken, errRefreshToken := c.jwtUtils.JwtEncode(refreshData)
+	if errRefreshToken != nil {
+		internalServerError(w, r, errRefreshToken)
+		return
+	}
+
+	errSetKeyAccessToken := c.rdb.Set(context.Background(), "access_token:"+strconv.Itoa(int(profileResponse.ID)), accessToken, 24*time.Hour).Err()
+	if errSetKeyAccessToken != nil {
+		internalServerError(w, r, errSetKeyAccessToken)
+		return
+	}
+	errSetKeyRefreshToken := c.rdb.Set(context.Background(), "refresh_token:"+strconv.Itoa(int(profileResponse.ID)), refreshToken, 3*24*time.Hour).Err()
+	if errSetKeyRefreshToken != nil {
+		internalServerError(w, r, errSetKeyRefreshToken)
+		return
+	}
+
+	res := Response{
+		Data: map[string]interface{}{
+			"profile":      profileResponse,
+			"accessToken":  accessToken,
+			"refreshToken": refreshToken,
+		},
+	}
+
+	render.JSON(w, r, res)
+
+}
+
 func NewAuthController() AuthController {
 	return &authController{
 		mutex:             new(sync.Mutex),
@@ -316,5 +384,8 @@ func NewAuthController() AuthController {
 		authService:       service.NewAuthService(),
 		smtpService:       service.NewSmtpService(),
 		mapCheckSendEmail: config.GetMapCheckSendEmail(),
+		jwtUtils:          utils.NewJwtUtils(),
+		rdb:               config.GetRedisClient(),
+		utils:             utils.NewJwtUtils(),
 	}
 }
