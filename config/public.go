@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
 )
 
@@ -48,6 +49,10 @@ func GetMapCheckSendEmail() map[string]bool {
 
 func GetRabbitmq() *amqp091.Connection {
 	return rabbitmq
+}
+
+func GetMongoDB() *mongo.Database {
+	return mongodb
 }
 
 func GetSmtpPort() string {

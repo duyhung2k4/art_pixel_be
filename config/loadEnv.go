@@ -23,8 +23,14 @@ func loadEnv() {
 	dbName = os.Getenv(DB_NAME)
 	dbUser = os.Getenv(DB_USER)
 	dbPassword = os.Getenv(DB_PASSWORD)
+
 	redisUrl = os.Getenv(REDIS_URL)
+
 	rabbitmqUrl = os.Getenv(RABBITMQ_URL)
+
+	mongodbUrl = os.Getenv(MONGO_URL)
+	mongoDatabase = os.Getenv(MONGO_DATABASE)
+
 	smtpEmail = os.Getenv(SMTP_EMAIL)
 	smtpHost = os.Getenv(SMTP_HOST)
 	smtpPort = os.Getenv(SMTP_PORT)

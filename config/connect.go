@@ -2,10 +2,13 @@ package config
 
 import (
 	"app/model"
+	"context"
 	"fmt"
 
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -57,4 +60,14 @@ func connectRabbitmq() error {
 		rabbitmq.Close()
 	}
 	return err
+}
+
+func connectMongoDB() error {
+	mongoClient, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mongodbUrl))
+	mongodb = mongoClient.Database(mongoDatabase)
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
