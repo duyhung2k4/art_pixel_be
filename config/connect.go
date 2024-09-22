@@ -33,6 +33,7 @@ func connectPostgresql(migrate bool) error {
 		errMigrate := dbPsql.AutoMigrate(
 			&model.Profile{},
 			&model.Face{},
+			&model.Event{},
 		)
 
 		if errMigrate != nil {
