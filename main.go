@@ -2,27 +2,15 @@ package main
 
 import (
 	"app/config"
+	pythonnodes "app/python_nodes"
 	"app/rabbitmq"
 	"app/router"
 	"app/socket"
 	"log"
 	"net/http"
-	"os/exec"
 	"sync"
 	"time"
 )
-
-func runPythonServer() {
-	cmd := exec.Command("python3", "python_nodes/index.py")
-	err := cmd.Start()
-	if err != nil {
-		log.Fatalf("Failed to start Python server: %v", err)
-	}
-	err = cmd.Wait()
-	if err != nil {
-		log.Fatalf("Python server exited with error: %v", err)
-	}
-}
 
 func main() {
 	var wg sync.WaitGroup
@@ -31,7 +19,7 @@ func main() {
 
 	go func() {
 		defer wg.Done()
-		runPythonServer() // Chạy server Python
+		pythonnodes.RunPythonServer(config.GetPythonNodePort())
 	}()
 
 	go func() {

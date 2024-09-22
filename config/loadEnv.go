@@ -16,6 +16,7 @@ func loadEnv() {
 	appHost = os.Getenv(APP_HOST)
 	appPort = os.Getenv(APP_PORT)
 	socketPort = os.Getenv(SOCKET_PORT)
+	pythonNodePort = os.Getenv(PYTHON_NODE_PORT)
 
 	dbHost = os.Getenv(DB_HOST)
 	dbPort = os.Getenv(DB_PORT)

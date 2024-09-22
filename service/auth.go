@@ -33,7 +33,7 @@ type AuthService interface {
 	CreateProfilePending(registerReq request.RegisterReq) (*model.Profile, error)
 	CheckFace(payload queuepayload.SendFileAuthMess) (string, error)
 	CreateFileAuthFace(data request.AuthFaceReq) (string, error)
-	AuthFace(payload queuepayload.FaceAuth) (bool, error)
+	AuthFace(payload queuepayload.FaceAuth) (int, error)
 	ActiveProfile(auth string) error
 	SaveFileAuth(auth string) error
 }
@@ -175,12 +175,12 @@ func (s *authService) CreateFileAuthFace(data request.AuthFaceReq) (string, erro
 	return path, nil
 }
 
-func (s *authService) AuthFace(payload queuepayload.FaceAuth) (bool, error) {
+func (s *authService) AuthFace(payload queuepayload.FaceAuth) (int, error) {
 	var faces []model.Face
 
 	// Lấy danh sách khuôn mặt từ cơ sở dữ liệu
 	if err := s.psql.Model(&model.Face{}).Find(&faces).Error; err != nil {
-		return false, err
+		return 0, err
 	}
 
 	// Tạo dữ liệu JSON để gửi đến API
@@ -191,19 +191,20 @@ func (s *authService) AuthFace(payload queuepayload.FaceAuth) (bool, error) {
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
 	// Gửi yêu cầu POST đến API Flask
 	resp, err := http.Post("http://localhost:5000/recognize_faces", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	defer resp.Body.Close()
+	defer os.Remove(payload.FilePath)
 
 	// Kiểm tra mã trạng thái HTTP
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("failed to call API, status code: %d", resp.StatusCode)
+		return 0, fmt.Errorf("failed to call API, status code: %d", resp.StatusCode)
 	}
 
 	// Đọc phản hồi từ API
@@ -211,20 +212,20 @@ func (s *authService) AuthFace(payload queuepayload.FaceAuth) (bool, error) {
 		Result string `json:"result"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return false, err
+		return 0, err
 	}
 
 	// Xử lý kết quả từ API
 	if response.Result == "-1" {
-		return false, nil // Không tìm thấy khuôn mặt phù hợp
+		return -1, nil // Không tìm thấy khuôn mặt phù hợp
 	}
 
 	profileId, err := strconv.Atoi(response.Result)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
-	return profileId >= 0, nil
+	return profileId, nil
 }
 
 func (s *authService) ActiveProfile(auth string) error {

@@ -18,6 +18,7 @@ type queueAuth struct {
 	rabbitmq    *amqp091.Connection
 	mapSocket   map[string]*websocket.Conn
 	authService service.AuthService
+	mutex       *sync.Mutex
 }
 
 type QueueAuth interface {
@@ -142,7 +143,6 @@ func (q *queueAuth) InitQueueAuthFace() {
 
 			var dataMess queuepayload.FaceAuth
 			if err := json.Unmarshal(msg.Body, &dataMess); err != nil {
-
 				return
 			}
 
@@ -153,22 +153,21 @@ func (q *queueAuth) InitQueueAuthFace() {
 
 			result, err := q.authService.AuthFace(dataMess)
 			if err != nil {
+				q.mutex.Lock()
 				socket.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+				q.mutex.Unlock()
 				return
 			}
-
-			if result {
-				socket.WriteMessage(websocket.TextMessage, []byte("true"))
-			} else {
-				socket.WriteMessage(websocket.TextMessage, []byte("false"))
-			}
-
+			q.mutex.Lock()
+			socket.WriteMessage(websocket.TextMessage, []byte(fmt.Sprint(result)))
+			q.mutex.Unlock()
 		}(msg)
 	}
 }
 
 func NewQueueAuth() QueueAuth {
 	return &queueAuth{
+		mutex:       new(sync.Mutex),
 		rabbitmq:    config.GetRabbitmq(),
 		mapSocket:   config.GetMapSocket(),
 		authService: service.NewAuthService(),

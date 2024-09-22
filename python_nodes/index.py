@@ -1,3 +1,4 @@
+import sys
 from flask import Flask, jsonify
 from controller.face_recognition_api import face_recognition_bp
 from controller.face_detection_api import face_detection_bp
@@ -15,4 +16,11 @@ def ping():
     return jsonify({"message": "pong"}), 200
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    # Lấy port từ argument dòng lệnh (nếu có)
+    if len(sys.argv) > 1:
+        port = int(sys.argv[1])
+    else:
+        port = 5000  # Giá trị mặc định nếu không truyền port
+
+    print(f"Flask server is running on port {port}")
+    app.run(host='0.0.0.0', port=port)

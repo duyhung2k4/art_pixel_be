@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	appPort    string
-	appHost    string
-	socketPort string
+	appPort        string
+	appHost        string
+	socketPort     string
+	pythonNodePort string
 
 	dbHost       string
 	dbPort       string

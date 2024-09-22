@@ -21,6 +21,10 @@ func GetAppHost() string {
 	return appHost
 }
 
+func GetPythonNodePort() string {
+	return pythonNodePort
+}
+
 func GetSocketPort() string {
 	return socketPort
 }
