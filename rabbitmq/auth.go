@@ -17,10 +17,11 @@ import (
 )
 
 type queueAuth struct {
-	rabbitmq    *amqp091.Connection
-	mapSocket   map[string]*websocket.Conn
-	authService service.AuthService
-	mutex       *sync.Mutex
+	mapSocket    map[string]*websocket.Conn
+	rabbitmq     *amqp091.Connection
+	mutex        *sync.Mutex
+	authService  service.AuthService
+	eventService service.EventService
 }
 
 type QueueAuth interface {
@@ -196,9 +197,10 @@ func (q *queueAuth) sendMess(data interface{}, socket *websocket.Conn) {
 
 func NewQueueAuth() QueueAuth {
 	return &queueAuth{
-		mutex:       new(sync.Mutex),
-		rabbitmq:    config.GetRabbitmq(),
-		mapSocket:   config.GetMapSocket(),
-		authService: service.NewAuthService(),
+		mutex:        new(sync.Mutex),
+		rabbitmq:     config.GetRabbitmq(),
+		mapSocket:    config.GetMapSocket(),
+		authService:  service.NewAuthService(),
+		eventService: service.NewEventService(),
 	}
 }
