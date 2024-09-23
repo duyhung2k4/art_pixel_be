@@ -39,6 +39,7 @@ var (
 	mongodb        *mongo.Database
 
 	mapSocket         map[string]*websocket.Conn
+	mapSocketEvent    map[string]map[string]*websocket.Conn
 	mapCheckSendEmail map[string]bool
 	jwt               *jwtauth.JWTAuth
 )

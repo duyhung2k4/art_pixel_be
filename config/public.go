@@ -70,3 +70,7 @@ func GetAuthSmtp() smtp.Auth {
 func GetJWT() *jwtauth.JWTAuth {
 	return jwt
 }
+
+func GetSocketEvent() map[string]map[string]*websocket.Conn {
+	return mapSocketEvent
+}

@@ -7,7 +7,7 @@ import (
 	"app/dto/request"
 	"app/model"
 	"context"
-	"log"
+	"errors"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -44,6 +44,7 @@ func (s *eventService) CreateEvent(payload request.CreateEventReq) (*model.Event
 				X:               x,
 				Y:               y,
 				EventId:         newEvent.ID,
+				Rgb:             nil,
 				ProfileIdUpDate: 0,
 			}
 			listPixelInteface = append(listPixelInteface, pixel)
@@ -68,6 +69,7 @@ func (s *eventService) DrawPixel(payload queuepayload.DrawPixel, profileId uint)
 	update := bson.M{
 		"$set": bson.M{
 			"profileIdUpDate": profileId,
+			"rgb":             payload.Data.Rgb,
 		},
 	}
 
@@ -75,8 +77,9 @@ func (s *eventService) DrawPixel(payload queuepayload.DrawPixel, profileId uint)
 	if err != nil {
 		return nil, err
 	}
-
-	log.Println(result)
+	if result.MatchedCount == 0 {
+		return nil, errors.New("pixel not found")
+	}
 
 	return nil, nil
 }
@@ -89,8 +92,9 @@ func NewEventService() EventService {
 }
 
 type PixelInsert struct {
-	EventId         uint `json:"eventId" bson:"eventId"`
-	X               int  `json:"x" bson:"x"`
-	Y               int  `json:"y" bson:"y"`
-	ProfileIdUpDate uint `json:"profileIdUpDate" bson:"profileIdUpDate"`
+	EventId         uint    `json:"eventId" bson:"eventId"`
+	X               int     `json:"x" bson:"x"`
+	Y               int     `json:"y" bson:"y"`
+	Rgb             *string `json:"rgb" bson:"rgb"`
+	ProfileIdUpDate uint    `json:"profileIdUpDate" bson:"profileIdUpDate"`
 }

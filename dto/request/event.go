@@ -10,8 +10,9 @@ type CreateEventReq struct {
 }
 
 type DrawPixelReq struct {
-	EventId   uint `json:"eventId"`
-	X         int  `json:"x"`
-	Y         int  `json:"y"`
-	ProfileId uint `json:"profileId"`
+	EventId   uint   `json:"eventId"`
+	X         int    `json:"x"`
+	Y         int    `json:"y"`
+	Rgb       string `json:"rgb"`
+	ProfileId uint   `json:"profileId"`
 }

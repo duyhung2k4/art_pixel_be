@@ -9,5 +9,6 @@ type Pixel struct {
 	EventId         uint               `json:"event_id" bson:"event_id"`
 	X               int                `json:"x" bson:"x"`
 	Y               int                `json:"y" bson:"y"`
+	Rgb             *string            `json:"rgb" bson:"rgb"`
 	ProfileIdUpDate uint               `json:"profileIdUpDate" bson:"profileIdUpDate"`
 }
