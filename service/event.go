@@ -8,15 +8,20 @@ import (
 	"app/model"
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 
+	"github.com/gorilla/websocket"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
 )
 
 type eventService struct {
-	psql    *gorm.DB
-	mongodb *mongo.Database
+	mutex          *sync.Mutex
+	psql           *gorm.DB
+	mongodb        *mongo.Database
+	mapSocketEvent map[string]map[string]*websocket.Conn
 }
 
 type EventService interface {
@@ -92,13 +97,23 @@ func (s *eventService) DrawPixel(payload queuepayload.DrawPixel, profileId uint)
 		return nil, errors.New("pixel not found")
 	}
 
+	eventIdString := fmt.Sprint(payload.EventId)
+
+	for _, c := range s.mapSocketEvent[eventIdString] {
+		s.mutex.Lock()
+		c.WriteMessage(websocket.TextMessage, []byte("cc"))
+		s.mutex.Unlock()
+	}
+
 	return nil, nil
 }
 
 func NewEventService() EventService {
 	return &eventService{
-		psql:    config.GetPsql(),
-		mongodb: config.GetMongoDB(),
+		mutex:          new(sync.Mutex),
+		psql:           config.GetPsql(),
+		mongodb:        config.GetMongoDB(),
+		mapSocketEvent: config.GetSocketEvent(),
 	}
 }
 

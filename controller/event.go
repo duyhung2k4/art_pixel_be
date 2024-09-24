@@ -6,17 +6,24 @@ import (
 	queuepayload "app/dto/queue_payload"
 	"app/dto/request"
 	"app/service"
+	"app/utils"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/render"
+	"github.com/gorilla/websocket"
 	"github.com/rabbitmq/amqp091-go"
 )
 
 type eventController struct {
-	eventService service.EventService
-	rabbitmq     *amqp091.Connection
+	eventService   service.EventService
+	rabbitmq       *amqp091.Connection
+	mapSocketEvent map[string]map[string]*websocket.Conn
+	utils          utils.JwtUtils
 }
 
 type EventController interface {
@@ -55,6 +62,20 @@ func (c *eventController) DrawPixel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cutToken := strings.Split(r.Header.Get("Authorization"), " ")
+	if len(cutToken) != 2 {
+		internalServerError(w, r, errors.New("token not found"))
+		return
+	}
+	tokenString := cutToken[1]
+	mapData, errMapData := c.utils.JwtDecode(tokenString)
+	profileId := strconv.Itoa(int(mapData["profile_id"].(float64)))
+
+	if errMapData != nil {
+		internalServerError(w, r, errMapData)
+		return
+	}
+
 	ch, err := c.rabbitmq.Channel()
 	if err != nil {
 		internalServerError(w, r, err)
@@ -62,7 +83,9 @@ func (c *eventController) DrawPixel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dataMess := queuepayload.DrawPixel{
-		AccessToken: "",
+		AccessToken: tokenString,
+		ProfileId:   profileId,
+		EventId:     newPixel.EventId,
 		Data:        newPixel,
 	}
 	dataMessString, err := json.Marshal(dataMess)
@@ -118,7 +141,9 @@ func (c *eventController) GetAllEvent(w http.ResponseWriter, r *http.Request) {
 
 func NewEventController() EventController {
 	return &eventController{
-		eventService: service.NewEventService(),
-		rabbitmq:     config.GetRabbitmq(),
+		eventService:   service.NewEventService(),
+		rabbitmq:       config.GetRabbitmq(),
+		mapSocketEvent: config.GetSocketEvent(),
+		utils:          utils.NewJwtUtils(),
 	}
 }
