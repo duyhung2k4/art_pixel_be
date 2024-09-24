@@ -11,4 +11,5 @@ func SocketV1(router chi.Router) {
 
 	router.HandleFunc("/auth", socketController.AuthSocket)
 	router.HandleFunc("/login", socketController.FaceLoginSocket)
+	router.HandleFunc("/event/{id}", socketController.EventSocket)
 }

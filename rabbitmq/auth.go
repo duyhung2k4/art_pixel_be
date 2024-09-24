@@ -178,8 +178,8 @@ func (q *queueAuth) InitQueueAuthFace() {
 
 			res = response.SocketErrorRes{
 				Data: map[string]interface{}{
-					accessToken:  accessToken,
-					refreshToken: refreshToken,
+					"accessToken":  accessToken,
+					"refreshToken": refreshToken,
 				},
 				Error: nil,
 			}

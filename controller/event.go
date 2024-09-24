@@ -20,6 +20,7 @@ type eventController struct {
 }
 
 type EventController interface {
+	GetAllEvent(w http.ResponseWriter, r *http.Request)
 	CreateEvent(w http.ResponseWriter, r *http.Request)
 	DrawPixel(w http.ResponseWriter, r *http.Request)
 }
@@ -89,6 +90,24 @@ func (c *eventController) DrawPixel(w http.ResponseWriter, r *http.Request) {
 
 	res := Response{
 		Data:    nil,
+		Message: "OK",
+		Status:  200,
+		Error:   nil,
+	}
+
+	render.JSON(w, r, res)
+}
+
+func (c *eventController) GetAllEvent(w http.ResponseWriter, r *http.Request) {
+	events, err := c.eventService.GetAllEvent()
+
+	if err != nil {
+		internalServerError(w, r, err)
+		return
+	}
+
+	res := Response{
+		Data:    events,
 		Message: "OK",
 		Status:  200,
 		Error:   nil,

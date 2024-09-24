@@ -20,8 +20,19 @@ type eventService struct {
 }
 
 type EventService interface {
+	GetAllEvent() ([]model.Event, error)
 	CreateEvent(payload request.CreateEventReq) (*model.Event, error)
 	DrawPixel(payload queuepayload.DrawPixel, profileId uint) (*model.Pixel, error)
+}
+
+func (s *eventService) GetAllEvent() ([]model.Event, error) {
+	var events []model.Event
+
+	if err := s.psql.Model(&model.Event{}).Find(&events).Error; err != nil {
+		return nil, err
+	}
+
+	return events, nil
 }
 
 func (s *eventService) CreateEvent(payload request.CreateEventReq) (*model.Event, error) {
