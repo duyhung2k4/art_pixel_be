@@ -24,12 +24,14 @@ def recognize_faces_from_db():
 
     try:
         def recognize_face_in_image(input_image_path):
-            print(1)
             # Sử dụng DeepFace để trích xuất các đặc trưng khuôn mặt (embeddings)
             face_encodings = DeepFace.represent(img_path=input_image_path, model_name="VGG-Face", enforce_detection=False)
             
             if len(face_encodings) == 0:
-                return "-3"  # Không có khuôn mặt nào được phát hiện
+                return "-3", 0.0  # Không có khuôn mặt nào được phát hiện
+
+            best_match_profile_id = None
+            best_match_distance = float('inf')  # Khởi tạo với giá trị lớn nhất
 
             # So sánh với face_encodings đã lưu trong database
             for face_encoding_dict in face_encodings:
@@ -40,9 +42,16 @@ def recognize_faces_from_db():
                 min_distance = min(distances)
                 best_match_index = distances.index(min_distance)
 
-                if min_distance < 0.6:  # Ngưỡng khoảng cách
+                if min_distance < 2:  # Ngưỡng khoảng cách
                     profile_id = known_profile_ids[best_match_index]
-                    return f"{profile_id}"
+                    confidence = 1 - (min_distance / 2)  # Độ chính xác, có thể thay đổi công thức tùy thuộc vào yêu cầu
+                    
+                    # In độ chính xác ra console
+                    print(f"Profile ID: {profile_id}, Confidence: {confidence:.2f}")
+                    
+                    if confidence > 0.7:
+                        return f"{profile_id}"
+                    return f"-3"
 
             return "-3"  # Không tìm thấy khuôn mặt nào khớp
 
