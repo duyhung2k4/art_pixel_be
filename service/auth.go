@@ -275,6 +275,7 @@ func (s *authService) SaveFileAuth(auth string) error {
 
 	// Gửi yêu cầu POST đến API Flask
 	resp, err := http.Post("http://localhost:5000/face_encoding", "application/json", bytes.NewBuffer(jsonData))
+	log.Println(resp)
 	if err != nil {
 		return err
 	}

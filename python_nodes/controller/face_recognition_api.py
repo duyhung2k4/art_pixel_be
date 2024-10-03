@@ -1,8 +1,7 @@
 from flask import Blueprint, request, jsonify
-import json
-import face_recognition
-import numpy as np
+from deepface import DeepFace
 import os
+import numpy as np
 
 face_recognition_bp = Blueprint('face_recognition', __name__)
 
@@ -11,49 +10,41 @@ def recognize_faces_from_db():
     data = request.json
 
     try:
+        # Nhận face encodings từ JSON input
         faces = data["faces"]
         known_face_encodings = [np.array(face["faceEncoding"]) for face in faces]
         known_profile_ids = [face["profileId"] for face in faces]
 
+        # Kiểm tra đường dẫn ảnh đầu vào
         input_image_path = data["input_image_path"]
         if not os.path.exists(input_image_path):
-            return jsonify({"result": "-2", "message": "Input image path does not exist."}), 400
-
-    except KeyError as e:
-        return jsonify({"result": "-2", "error": f"Missing key: {str(e)}"}), 400
+            return jsonify({"result": "-2"}), 400
     except Exception as e:
         return jsonify({"result": "-2", "error": str(e)}), 400
 
     try:
         def recognize_face_in_image(input_image_path):
-            image_to_check = face_recognition.load_image_file(input_image_path)
-            face_locations = face_recognition.face_locations(image_to_check)
-            face_encodings = face_recognition.face_encodings(image_to_check, face_locations)
-
+            # Sử dụng DeepFace để trích xuất các đặc trưng khuôn mặt (embeddings)
+            face_encodings = DeepFace.represent(img_path=input_image_path, model_name="VGG-Face", enforce_detection=False)
+            
             if len(face_encodings) == 0:
-                return "-3"  # No faces detected
+                return "-3"  # Không có khuôn mặt nào được phát hiện
 
+            # So sánh với face_encodings đã lưu trong database
             for face_encoding in face_encodings:
-                matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
-                
-                if not any(matches):
-                    continue  # No match found, continue to next face encoding
+                # Tính khoảng cách giữa các vector face_encodings
+                distances = [np.linalg.norm(face_encoding - known_encoding) for known_encoding in known_face_encodings]
+                min_distance = min(distances)
+                best_match_index = distances.index(min_distance)
 
-                face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
-                best_match_index = np.argmin(face_distances)
-
-                if matches[best_match_index]:
+                if min_distance < 0.6:  # Ngưỡng khoảng cách
                     profile_id = known_profile_ids[best_match_index]
+                    return f"{profile_id}"
 
-                    if len(face_locations) == 1:
-                        return f"{profile_id}"
-
-            return "-3"  # No match found
+            return "-3"  # Không tìm thấy khuôn mặt nào khớp
 
         message = recognize_face_in_image(input_image_path)
-        if message == "-3":
-            return jsonify({"result": message, "message": "No matching faces found."})
         return jsonify({"result": message})
-
+    
     except Exception as e:
         return jsonify({"result": "-4", "error": str(e)}), 500
