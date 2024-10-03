@@ -7,10 +7,9 @@ import (
 
 func RunRabbitmq() {
 	authQueue := NewQueueAuth()
-	eventQueue := NewQueueEvent()
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(2)
 
 	go func() {
 		authQueue.InitQueueSendFileAuth()
@@ -18,10 +17,6 @@ func RunRabbitmq() {
 	}()
 	go func() {
 		authQueue.InitQueueAuthFace()
-		wg.Done()
-	}()
-	go func() {
-		eventQueue.InitQueueDrawPixel()
 		wg.Done()
 	}()
 

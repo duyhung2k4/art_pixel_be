@@ -19,12 +19,11 @@ import (
 )
 
 type queueAuth struct {
-	mapSocket    map[string]*websocket.Conn
-	rabbitmq     *amqp091.Connection
-	mutex        *sync.Mutex
-	authService  service.AuthService
-	eventService service.EventService
-	psql         *gorm.DB
+	mapSocket   map[string]*websocket.Conn
+	rabbitmq    *amqp091.Connection
+	mutex       *sync.Mutex
+	authService service.AuthService
+	psql        *gorm.DB
 }
 
 type QueueAuth interface {
@@ -209,11 +208,10 @@ func (q *queueAuth) sendMess(data interface{}, socket *websocket.Conn) {
 
 func NewQueueAuth() QueueAuth {
 	return &queueAuth{
-		mutex:        new(sync.Mutex),
-		rabbitmq:     config.GetRabbitmq(),
-		mapSocket:    config.GetMapSocket(),
-		authService:  service.NewAuthService(),
-		eventService: service.NewEventService(),
-		psql:         config.GetPsql(),
+		mutex:       new(sync.Mutex),
+		rabbitmq:    config.GetRabbitmq(),
+		mapSocket:   config.GetMapSocket(),
+		authService: service.NewAuthService(),
+		psql:        config.GetPsql(),
 	}
 }
