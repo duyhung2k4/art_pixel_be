@@ -11,5 +11,8 @@ type Profile struct {
 	Nickname  string `json:"nickname"`
 	Active    bool   `json:"active"`
 
+	PublicKey  string `json:"publicKey"`
+	PrivateKey string `json:"privateKey"`
+
 	Faces []Face `json:"faces" gorm:"foreignKey:ProfileId"`
 }
