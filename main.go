@@ -2,7 +2,6 @@ package main
 
 import (
 	"app/config"
-	pythonnodes "app/python_nodes"
 	"app/rabbitmq"
 	"app/router"
 	"app/socket"
@@ -19,7 +18,7 @@ func main() {
 
 	go func() {
 		defer wg.Done()
-		pythonnodes.RunPythonServer(config.GetPythonNodePort())
+		// pythonnodes.RunPythonServer(config.GetPythonNodePort())
 	}()
 
 	go func() {

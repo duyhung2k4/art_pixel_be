@@ -31,11 +31,11 @@ def recognize_faces_from_db():
             face_encodings = face_recognition.face_encodings(image_to_check, face_locations)
 
             if len(face_encodings) == 0:
-                return "-3"  # No faces detected
+                return -3  # No faces detected
 
             for face_encoding in face_encodings:
                 matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
-                
+
                 if not any(matches):
                     continue  # No match found, continue to next face encoding
 
@@ -44,16 +44,21 @@ def recognize_faces_from_db():
 
                 if matches[best_match_index]:
                     profile_id = known_profile_ids[best_match_index]
+                    accuracy = 1 - face_distances[best_match_index]  # Calculate accuracy
+                    
+                    print(f"ProfileID:{profile_id} / result: {round(accuracy * 100, 2)}")
 
-                    if len(face_locations) == 1:
-                        return f"{profile_id}"
+                    if round(accuracy * 100, 2) >= 80.00:
+                        return profile_id
+                    return -3  # Return only the profile ID
 
-            return "-3"  # No match found
+            return -3  # No match found
 
-        message = recognize_face_in_image(input_image_path)
-        if message == "-3":
-            return jsonify({"result": message, "message": "No matching faces found."})
-        return jsonify({"result": message})
+        profile_id = recognize_face_in_image(input_image_path)
+        if profile_id == -3:
+            return jsonify({"result": "-3", "message": "No matching faces found."})
+        
+        return jsonify({"result": str(profile_id)})
 
     except Exception as e:
         return jsonify({"result": "-4", "error": str(e)}), 500

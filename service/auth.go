@@ -94,7 +94,7 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 		return "", err
 	}
 	// Config num input data
-	if countFileFolder >= 10 {
+	if countFileFolder >= 30 {
 		return "done", nil
 	}
 
