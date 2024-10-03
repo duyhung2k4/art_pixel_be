@@ -14,12 +14,22 @@ def detect_single_face():
 
     try:
         image = cv2.imread(image_path)
-        face_locations = face_recognition.face_locations(image)
-        is_single_face = len(face_locations) == 1
+        if image is None:
+            return jsonify({"result": False, "error": "Unable to load image."}), 400
         
-        if is_single_face == True:
-            return jsonify({"result": True})
+        # Resize image to improve speed (if image is large)
+        if image.shape[0] > 800 or image.shape[1] > 800:
+            scale_factor = 800 / max(image.shape[0], image.shape[1])
+            image = cv2.resize(image, (0, 0), fx=scale_factor, fy=scale_factor)
 
-        return jsonify({"result": False})
+        face_locations = face_recognition.face_locations(image)
+
+        if len(face_locations) == 1:
+            return jsonify({"result": True})
+        elif len(face_locations) == 0:
+            return jsonify({"result": False, "message": "No face detected."}), 200
+        else:
+            return jsonify({"result": False, "message": "Multiple faces detected."}), 200
+
     except Exception as e:
         return jsonify({"result": False, "error": str(e)}), 500

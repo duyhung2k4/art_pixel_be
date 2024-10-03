@@ -13,20 +13,26 @@ def face_encoding():
         return jsonify({"result": "error", "message": "Directory path is invalid."}), 400
 
     list_face_encoding = []
+    errors = []
 
     try:
         for image_file in os.listdir(directory_path):
             image_path = os.path.join(directory_path, image_file)
-            new_image = face_recognition.load_image_file(image_path)
-            new_face_encodings = face_recognition.face_encodings(new_image)
-            
-            if len(new_face_encodings) > 0:
-                new_face_encoding = new_face_encodings[0]
-                list_face_encoding.append(new_face_encoding.tolist())
-            else:
-                print(f"No faces found in {image_file}")
 
-        return jsonify({"result": "success", "face_encodings": list_face_encoding})
+            try:
+                new_image = face_recognition.load_image_file(image_path)
+                new_face_encodings = face_recognition.face_encodings(new_image)
+
+                if len(new_face_encodings) > 0:
+                    new_face_encoding = new_face_encodings[0]
+                    list_face_encoding.append(new_face_encoding.tolist())
+                else:
+                    errors.append(f"No face found in {image_file}")
+
+            except Exception as e:
+                errors.append(f"Error processing {image_file}: {str(e)}")
+
+        return jsonify({"result": "success", "face_encodings": list_face_encoding, "errors": errors})
 
     except Exception as e:
         return jsonify({"result": "error", "message": str(e)}), 500
