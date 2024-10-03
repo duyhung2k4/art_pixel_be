@@ -5,7 +5,6 @@ import (
 	"app/constant"
 	queuepayload "app/dto/queue_payload"
 	"app/dto/response"
-	"app/model"
 	"app/service"
 	"encoding/json"
 	"errors"
@@ -178,19 +177,19 @@ func (q *queueAuth) InitQueueAuthFace() {
 				return
 			}
 
-			var profile *model.Profile
-			if err = q.psql.Model(&model.Profile{}).Where("id = ?", uint(result)).First(&profile).Error; err != nil {
-				res.Error = err
-				q.sendMess(res, socket)
-				return
-			}
+			// var profile *model.Profile
+			// if err = q.psql.Model(&model.Profile{}).Where("id = ?", uint(result)).First(&profile).Error; err != nil {
+			// 	res.Error = err
+			// 	q.sendMess(res, socket)
+			// 	return
+			// }
 
 			res = response.SocketErrorRes{
 				Data: map[string]interface{}{
 					"accessToken":  accessToken,
 					"refreshToken": refreshToken,
 					"profileId":    result,
-					"profile":      profile,
+					// "profile":      profile,
 				},
 				Error: nil,
 			}

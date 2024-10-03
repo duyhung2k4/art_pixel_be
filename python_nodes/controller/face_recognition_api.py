@@ -24,6 +24,7 @@ def recognize_faces_from_db():
 
     try:
         def recognize_face_in_image(input_image_path):
+            print(1)
             # Sử dụng DeepFace để trích xuất các đặc trưng khuôn mặt (embeddings)
             face_encodings = DeepFace.represent(img_path=input_image_path, model_name="VGG-Face", enforce_detection=False)
             
@@ -31,7 +32,9 @@ def recognize_faces_from_db():
                 return "-3"  # Không có khuôn mặt nào được phát hiện
 
             # So sánh với face_encodings đã lưu trong database
-            for face_encoding in face_encodings:
+            for face_encoding_dict in face_encodings:
+                face_encoding = np.array(face_encoding_dict['embedding'])  # Trích xuất giá trị embedding
+                
                 # Tính khoảng cách giữa các vector face_encodings
                 distances = [np.linalg.norm(face_encoding - known_encoding) for known_encoding in known_face_encodings]
                 min_distance = min(distances)
@@ -47,4 +50,5 @@ def recognize_faces_from_db():
         return jsonify({"result": message})
     
     except Exception as e:
+        print(e)
         return jsonify({"result": "-4", "error": str(e)}), 500
