@@ -267,14 +267,14 @@ func (c *authController) AcceptCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = c.authService.ActiveProfile(uuid)
+	profile, err := c.authService.ActiveProfile(uuid)
 	if err != nil {
 		internalServerError(w, r, err)
 		return
 	}
 
 	res := Response{
-		Data:    nil,
+		Data:    profile.PublicKey,
 		Message: "OK",
 		Status:  200,
 		Error:   nil,

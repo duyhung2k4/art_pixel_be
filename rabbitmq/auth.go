@@ -5,6 +5,7 @@ import (
 	"app/constant"
 	queuepayload "app/dto/queue_payload"
 	"app/dto/response"
+	"app/model"
 	"app/service"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/rabbitmq/amqp091-go"
+	"gorm.io/gorm"
 )
 
 type queueAuth struct {
@@ -22,6 +24,7 @@ type queueAuth struct {
 	mutex        *sync.Mutex
 	authService  service.AuthService
 	eventService service.EventService
+	psql         *gorm.DB
 }
 
 type QueueAuth interface {
@@ -176,10 +179,19 @@ func (q *queueAuth) InitQueueAuthFace() {
 				return
 			}
 
+			var profile *model.Profile
+			if err = q.psql.Model(&model.Profile{}).Where("id = ?", uint(result)).First(&profile).Error; err != nil {
+				res.Error = err
+				q.sendMess(res, socket)
+				return
+			}
+
 			res = response.SocketErrorRes{
 				Data: map[string]interface{}{
 					"accessToken":  accessToken,
 					"refreshToken": refreshToken,
+					"profileId":    result,
+					"profile":      profile,
 				},
 				Error: nil,
 			}
@@ -202,5 +214,6 @@ func NewQueueAuth() QueueAuth {
 		mapSocket:    config.GetMapSocket(),
 		authService:  service.NewAuthService(),
 		eventService: service.NewEventService(),
+		psql:         config.GetPsql(),
 	}
 }

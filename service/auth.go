@@ -36,7 +36,7 @@ type AuthService interface {
 	CheckFace(payload queuepayload.SendFileAuthMess) (string, error)
 	CreateFileAuthFace(data request.AuthFaceReq) (string, error)
 	AuthFace(payload queuepayload.FaceAuth) (int, error)
-	ActiveProfile(auth string) error
+	ActiveProfile(auth string) (*model.Profile, error)
 	SaveFileAuth(auth string) error
 	GetProfile(profileId uint) (*model.Profile, error)
 	CreateToken(profileId uint) (string, string, error)
@@ -60,11 +60,14 @@ func (s *authService) CheckExistProfile(registerReq request.RegisterReq) (bool, 
 }
 
 func (s *authService) CreateProfilePending(registerReq request.RegisterReq) (*model.Profile, error) {
+	pub, priv := utils.GenKey()
 	var newProfile = model.Profile{
-		FirstName: registerReq.FirstName,
-		LastName:  registerReq.LastName,
-		Email:     registerReq.Email,
-		Active:    false,
+		FirstName:  registerReq.FirstName,
+		LastName:   registerReq.LastName,
+		Email:      registerReq.Email,
+		Active:     false,
+		PublicKey:  pub,
+		PrivateKey: priv,
 	}
 
 	if err := s.psql.Model(&model.Profile{}).Create(&newProfile).Error; err != nil {
@@ -90,6 +93,7 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 	if err != nil {
 		return "", err
 	}
+	// Config num input data
 	if countFileFolder >= 10 {
 		return "done", nil
 	}
@@ -232,16 +236,16 @@ func (s *authService) AuthFace(payload queuepayload.FaceAuth) (int, error) {
 	return profileId, nil
 }
 
-func (s *authService) ActiveProfile(auth string) error {
+func (s *authService) ActiveProfile(auth string) (*model.Profile, error) {
 	var profile model.Profile
 	profileJson, err := s.redis.Get(context.Background(), auth).Result()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := json.Unmarshal([]byte(profileJson), &profile); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := s.psql.
@@ -249,10 +253,10 @@ func (s *authService) ActiveProfile(auth string) error {
 		Where("id = ?", profile.ID).
 		Updates(&model.Profile{Active: true}).
 		Error; err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &profile, nil
 }
 
 func (s *authService) SaveFileAuth(auth string) error {
