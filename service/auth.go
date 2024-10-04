@@ -94,7 +94,7 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 		return "", err
 	}
 	// Config num input data
-	if countFileFolder >= 30 {
+	if countFileFolder >= 10 {
 		return "done", nil
 	}
 
@@ -124,12 +124,10 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 		return "", err
 	}
 	defer resp.Body.Close()
-
 	// Kiểm tra mã trạng thái HTTP
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("failed to call API, status code: %d", resp.StatusCode)
 	}
-
 	// Đọc phản hồi từ API
 	var resultCheckFace struct {
 		Result bool `json:"result"`
@@ -137,7 +135,27 @@ func (s *authService) CheckFace(payload queuepayload.SendFileAuthMess) (string, 
 	if err := json.NewDecoder(resp.Body).Decode(&resultCheckFace); err != nil {
 		return "", err
 	}
+	if !resultCheckFace.Result {
+		if err := os.Remove(pathPending); err != nil {
+			return "", err
+		}
+		return "image not a face!", nil
+	}
 
+	// Gọi API tính góc xoay
+	resp, err = http.Post("http://localhost:5000/calculate_head_pose", "application/json", bytes.NewBuffer(payloadDetectFace))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	// Kiểm tra mã trạng thái HTTP
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to call API, status code: %d", resp.StatusCode)
+	}
+	// Đọc phản hồi từ API
+	if err := json.NewDecoder(resp.Body).Decode(&resultCheckFace); err != nil {
+		return "", err
+	}
 	if !resultCheckFace.Result {
 		if err := os.Remove(pathPending); err != nil {
 			return "", err
@@ -187,7 +205,12 @@ func (s *authService) AuthFace(payload queuepayload.FaceAuth) (int, error) {
 	var faces []model.Face
 
 	// Lấy danh sách khuôn mặt từ cơ sở dữ liệu
-	if err := s.psql.Model(&model.Face{}).Find(&faces).Error; err != nil {
+	if err := s.psql.
+		Model(&model.Face{}).
+		Joins("JOIN profiles AS p ON p.id = faces.profile_id").
+		Where("p.active = ?", true).
+		Find(&faces).
+		Error; err != nil {
 		return 0, err
 	}
 

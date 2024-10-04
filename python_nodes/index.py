@@ -3,6 +3,7 @@ from flask import Flask, jsonify
 from controller.face_recognition_api import face_recognition_bp
 from controller.face_detection_api import face_detection_bp
 from controller.face_encoding_api import face_encoding_bp
+from controller.calculate_head_pose_api import calculate_head_pose_bp
 
 app = Flask(__name__)
 
@@ -10,6 +11,7 @@ app = Flask(__name__)
 app.register_blueprint(face_recognition_bp)
 app.register_blueprint(face_detection_bp)
 app.register_blueprint(face_encoding_bp)
+app.register_blueprint(calculate_head_pose_bp)
 
 @app.route('/ping', methods=['GET'])
 def ping():
