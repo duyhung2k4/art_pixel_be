@@ -154,7 +154,12 @@ func (q *queueAuth) InitQueueAuthFace() {
 			}
 
 			socket := q.mapSocket[dataMess.Uuid]
-			log.Println("socket: ", socket)
+			log.Println("uuid: ", dataMess.Uuid)
+			if socket == nil {
+				log.Println("socket: ", false)
+			} else {
+				log.Println("socket: ", true)
+			}
 
 			if socket == nil {
 				return
