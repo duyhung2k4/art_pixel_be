@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/smtp"
 	"time"
@@ -46,7 +45,6 @@ func (s *smtpService) SendCodeAcceptRegister(auth string) error {
 	}
 
 	code := fmt.Sprintf("%d", rand.Intn(900000)+100000)
-	log.Println(code)
 
 	to := []string{profile.Email}
 	msg := []byte(code)

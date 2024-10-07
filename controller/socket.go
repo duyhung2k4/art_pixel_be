@@ -92,8 +92,6 @@ func (c *socketController) FaceLoginSocket(w http.ResponseWriter, r *http.Reques
 	c.mapSocket[uuid] = conn
 	c.mutexSocket.Unlock()
 
-	log.Println(c.mapSocket)
-
 	// listen connect
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
