@@ -75,7 +75,7 @@ def recognize_faces_from_db():
 
                     print(f"ProfileID:{profile_id} / result: {round(accuracy * 100, 2)}")
 
-                    if round(accuracy * 100, 2) >= 80.00:
+                    if round(accuracy * 100, 2) >= 70.00:
                         return profile_id
                     return -3  # Trả về ID của profile
 
