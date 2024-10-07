@@ -85,12 +85,12 @@ func (c *authController) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newFolderPending := fmt.Sprintf("file/pending_file/%s", uuidKey)
-	if err := os.Mkdir(newFolderPending, 0075); err != nil {
+	if err := os.Mkdir(newFolderPending, 0777); err != nil {
 		internalServerError(w, r, err)
 		return
 	}
 	newFolderAddModel := fmt.Sprintf("file/file_add_model/%s", uuidKey)
-	if err := os.Mkdir(newFolderAddModel, 0075); err != nil {
+	if err := os.Mkdir(newFolderAddModel, 0777); err != nil {
 		internalServerError(w, r, err)
 		return
 	}
