@@ -80,9 +80,9 @@ def calculate_pose():
 
             yaw = angles[2]
             
-            if yaw > 3:
+            if yaw > 7.5:
                 return jsonify({ "result": False })
-            if yaw < -3:
+            if yaw < -7.5:
                 return jsonify({ "result": False })
 
             return jsonify({ "result": True })
